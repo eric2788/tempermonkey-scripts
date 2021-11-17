@@ -161,6 +161,7 @@ async function startRecord(url) {
       const {done, value } = await reader.read()
       // 下播
       if (done){
+         stop_record = true
          break
       }
       chunks.push(value)
