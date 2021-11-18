@@ -1,7 +1,7 @@
 // ==UserScript==
 // @name         B站直播随看随录
 // @namespace    http://tampermonkey.net/
-// @version      0.2
+// @version      0.3
 // @description  无需打开弹幕姬，必要时直接录制的快速切片工具
 // @author       Eric Lam
 // @compatible   Chrome(80.0)
@@ -27,6 +27,8 @@ class StreamUrlGetter {
 
 }
 
+let enableIndexedDB = false;
+
 
 (async function() {
     'use strict';
@@ -45,6 +47,26 @@ class StreamUrlGetter {
     if (res.data.live_status != 1){
         console.log('此房间目前没有直播')
         return
+    }
+
+    // ========= indexdb 操作 =========================
+    const key = `stream_record.${roomId}`
+
+    if (window.indexedDB){
+       try {
+           await connect(key)
+           enableIndexedDB = true
+       }catch(err){
+          console.error(err)
+          alert(`連接資料庫時出現錯誤: ${err.message}, 没办法使用 IndexedDB。(尝试刷新?)`)
+          closeDatabase()
+       }
+    }else{
+        alert('你的瀏覽器不支援IndexedDB。')
+    }
+
+    if (!enableIndexedDB) {
+        alert('由于 IndexedDB 无法被使用，因此每次只能录制1gb大小的视频，超过会自动终止录制。(最好找一个支援 IndexedDB 的浏览器)')
     }
 
     // ======== 更改方式实作 , 如无法寻找可以更改别的 class =====
@@ -133,6 +155,12 @@ function toTimer(secs){
     return `${hr}:${mu}:${ms}`
 }
 
+function isFlvHeader(buf) {
+	if (!buf || buf.length < 4) {
+		return false;
+	}
+	return buf[0] === 0x46 && buf[1] === 0x4c && buf[2] === 0x56 && buf[3] === 0x01;
+}
 
 function startTimer(){
   let seconds = 0
@@ -147,7 +175,12 @@ function stopTimer() {
    $('#record')[0].innerText = '开始录制'
 }
 
+function round(float){
+  return Math.round(float * 10) / 10
+}
+
 async function startRecord(url) {
+    await clearRecords() // 清空之前的记录
     const res = await fetch(url, { credentials: 'same-origin' })
     if (!res.ok){
         throw new Error(res.statusText)
@@ -155,7 +188,8 @@ async function startRecord(url) {
     startTimer()
     const reader = res.body.getReader();
     stop_record = false
-    const chunks = []
+    const chunks = [] // 不支援 indexeddb 时采用
+    let size = 0
     console.log('录制已经开始...')
     while (!stop_record){
       const {done, value } = await reader.read()
@@ -164,19 +198,31 @@ async function startRecord(url) {
          stop_record = true
          break
       }
-      chunks.push(value)
+      size += value.length
+      console.debug(`size: ${round(size/1024/1024)}MB`)
+      if (enableIndexedDB){
+         await pushRecord(value)
+      }else{
+         chunks.push(value)
+         if (round(size/1024/1024) > 1000){ // 采用非 indexeddb， 限制 1gb 大小录制
+            stop_record = true
+            break
+         }
+      }
     }
     stopTimer()
     console.log('录制已中止。')
-    return chunks
+    if (enableIndexedDB){
+       return await pollRecords()
+    }else{
+       return chunks
+    }
 }
 
 
 async function stopRecord(){
    stop_record = true
 }
-
-window.stop_record = stopRecord
 
 
 function download_flv(chunks, file = 'test.flv'){
@@ -282,5 +328,178 @@ class RoomPlayInfo extends StreamUrlGetter {
         }
     }
 
+}
+
+// ========== indexdb ==========
+
+function log(msg){
+    console.log(`[IndexedDB] ${msg}`)
+}
+
+let db = undefined
+const storeName = 'stream_record'
+//const superChatName = 'superchat'
+
+async function connect(key){
+    return new Promise((res, rej) => {
+        const open = window.indexedDB.open(key, 1)
+        log('connecting to indexedDB')
+        open.onerror = function(event){
+            log('connection error: '+event.target.error.message)
+            rej(event.target.error)
+        }
+        open.onsuccess = function(event){
+            db = open.result
+            log('connection success')
+            createObjectStoreIfNotExist(db, rej)
+            res(event)
+        }
+        open.onupgradeneeded = function(event) {
+            db = event.target.result;
+            log('connection success on upgrade needed')
+            createObjectStoreIfNotExist(db, rej)
+            res(event.target.error)
+        }
+    })
+
+}
+
+function closeDatabase(){
+    db?.close()
+}
+
+async function drop(key){
+    return new Promise((res, rej) => {
+        const req = window.indexedDB.deleteDatabase(key);
+        req.onsuccess = function () {
+            log("Deleted database successfully");
+            res()
+        };
+        req.onerror = function () {
+            log("Couldn't delete database");
+            rej(req.error)
+        };
+        req.onblocked = function () {
+            log("Couldn't delete database due to the operation being blocked");
+            rej(req.error)
+        };
+    })
+}
+
+function createObjectStoreIfNotExist(db, rej){
+    if(!db) return
+    try{
+        if (!db.objectStoreNames.contains(storeName)) {
+            log(`objectStore ${storeName} does not exist, creating new one.`)
+            db.createObjectStore(storeName, { autoIncrement: true })
+            log('successfully created.')
+        }
+    }catch(err){
+        log('error while creating object store: '+err.message)
+        rej(err)
+    }
+    db.onerror = function(event) {
+        log("Database error: " + event.target.error.message);
+    }
+    db.onclose = () => {
+        console.log('Database connection closed');
+    }
+}
+
+
+async function pushRecord(object){
+   return new Promise((res, rej)=>{
+        if (!db){
+            log('db not defined, so skipped')
+            rej(new Error('db is not defined'))
+        }
+        try{
+            const tran = db.transaction([storeName], 'readwrite')
+            handleTrans(rej, tran)
+            const s = tran.objectStore(storeName).add(object)
+            s.onsuccess = (e) => {
+                //log('pushing successful')
+                res(e)
+            }
+            s.onerror = () => {
+                log('error while adding byte: '+s.error.message)
+                rej(s.error)
+            }
+        }catch(err){
+            rej(err)
+        }
+   })
+ }
+
+ function handleTrans(rej, tran){
+    tran.oncomplete = function(){
+        //log('transaction completed')
+    }
+    tran.onerror = function(){
+        log('transaction error: '+tran.error.message)
+        rej(tran.error)
+    }
+ }
+
+async function pollRecords(){
+    const buffer = await listRecords()
+    await clearRecords()
+    return buffer
+}
+
+async function listRecords(){
+   return new Promise((res, rej) => {
+    if (!db){
+        log('db not defined, so skipped')
+        rej(new Error('db is not defined'))
+      }
+      try{
+        const tran = db.transaction([storeName], 'readwrite')
+        handleTrans(rej, tran)
+        const cursors = tran.objectStore(storeName).openCursor()
+        const records = []
+        cursors.onsuccess = function(event){
+           let cursor = event.target.result;
+           if (cursor) {
+              records.push(cursor.value)
+              cursor.continue();
+           }
+           else {
+             log("total bytes: "+records.length);
+             res(records)
+           }
+        }
+        cursors.onerror = function(){
+            log('error while fetching data: '+cursors.error.message)
+            rej(cursors.error)
+        }
+      }catch(err){
+          rej(err)
+      }
+   })
+ }
+
+async function clearRecords(){
+   return new Promise((res, rej) => {
+        if (!db){
+            log('db not defined, so skipped')
+            rej(new Error('db is not defined'))
+        }
+       try{
+            const tran = db.transaction([storeName], 'readwrite')
+            handleTrans(rej, tran)
+            const req = tran.objectStore(storeName).clear()
+            req.onsuccess = (e) => {
+            log('clear success')
+            res(e)
+            }
+            req.onerror = () =>{
+                log('error while clearing data: '+req.error.message)
+                rej(req.error)
+            }
+       }catch(err){
+           rej(err)
+       }
+   })
 }
 
