@@ -1,12 +1,12 @@
 // ==UserScript==
 // @name         B站直播随看随录
 // @namespace    http://tampermonkey.net/
-// @version      0.3
+// @version      0.4
 // @description  无需打开弹幕姬，必要时直接录制的快速切片工具
 // @author       Eric Lam
-// @compatible   Chrome(80.0)
-// @compatible   Firefox(74.0)
-// @compatible   Edge(80.0)
+// @compatible   Chrome(94.0)
+// @compatible   Firefox(91.0)
+// @compatible   Edge(94.0)
 // @license      MIT
 // @include      /https?:\/\/live\.bilibili\.com\/(blanc\/)?\d+\??.*/
 // @require      https://cdn.jsdelivr.net/npm/jquery@3.5.1/dist/jquery.min.js
@@ -28,7 +28,7 @@ class StreamUrlGetter {
 }
 
 let enableIndexedDB = false;
-
+let limit1gb = false;
 
 (async function() {
     'use strict';
@@ -66,7 +66,7 @@ let enableIndexedDB = false;
     }
 
     if (!enableIndexedDB) {
-        alert('由于 IndexedDB 无法被使用，因此每次只能录制1gb大小的视频，超过会自动终止录制。(最好找一个支援 IndexedDB 的浏览器)')
+        limit1gb = confirm('由于 IndexedDB 无法被使用，是否应该限制每次最多录制 1gb 视频以防止浏览器崩溃？')
     }
 
     // ======== 更改方式实作 , 如无法寻找可以更改别的 class =====
@@ -93,7 +93,8 @@ let enableIndexedDB = false;
     }
 
     const rows = $('.rows-ctnr')
-    rows.append('<button id="record">开始录制</button')
+    rows.append(`<button id="record">开始录制</button>`)
+
     $('#record').on('click', () => {
        if (real_url === undefined){
            alert('没有可用的直播线路。')
@@ -162,11 +163,13 @@ function isFlvHeader(buf) {
 	return buf[0] === 0x46 && buf[1] === 0x4c && buf[2] === 0x56 && buf[3] === 0x01;
 }
 
+
+let symbol = '🔴'
 function startTimer(){
   let seconds = 0
   timer_interval = setInterval(() => {
      seconds += 1
-      $('#record')[0].innerText = `${seconds % 2 == 0 ? '🔴' : '⚪'}录制中`
+     symbol = seconds % 2 == 0 ? '🔴' : '⚪'
   }, 1000)
 }
 
@@ -177,6 +180,15 @@ function stopTimer() {
 
 function round(float){
   return Math.round(float * 10) / 10
+}
+
+function formatSize(size) {
+  const mb = round(size/1024/1024)
+  if (mb > 1000){
+     return `${round(mb / 1000).toFixed(1)}GB`
+  }else{
+     return `${mb.toFixed(1)}MB`
+  }
 }
 
 async function startRecord(url) {
@@ -199,12 +211,13 @@ async function startRecord(url) {
          break
       }
       size += value.length
-      console.debug(`size: ${round(size/1024/1024)}MB`)
+      $('#record')[0].innerText = `${symbol}录制中(${formatSize(size)})` // hover 显示目前录制视频大小
+      const blob = new Blob([value], { type: 'application/octet-stream'})
       if (enableIndexedDB){
-         await pushRecord(value)
+         await pushRecord(blob)
       }else{
-         chunks.push(value)
-         if (round(size/1024/1024) > 1000){ // 采用非 indexeddb， 限制 1gb 大小录制
+         chunks.push(blob)
+         if (limit1gb && round(size/1024/1024) > 1000){ // 采用非 indexeddb 且启用了限制 1gb 大小录制
             stop_record = true
             break
          }
@@ -231,7 +244,7 @@ function download_flv(chunks, file = 'test.flv'){
      alert('没有可以下载的资料')
      return
   }
-  const blob = new Blob(chunks, { type: 'video/x-flv ' }, file)
+  const blob = new Blob(chunks, { type: 'video/x-flv' }, file)
   const url = window.URL.createObjectURL(blob)
   const a = document.createElement('a');
   a.style.display = "none";
@@ -338,7 +351,6 @@ function log(msg){
 
 let db = undefined
 const storeName = 'stream_record'
-//const superChatName = 'superchat'
 
 async function connect(key){
     return new Promise((res, rej) => {
