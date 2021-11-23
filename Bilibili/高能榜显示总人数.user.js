@@ -1,7 +1,7 @@
 // ==UserScript==
 // @name         高能榜显示总人数
 // @namespace    http://tampermonkey.net/
-// @version      0.1
+// @version      0.2
 // @description  听说有人想要把高能榜当同接参考？
 // @author       Eric Lam
 // @license      MIT
@@ -18,12 +18,18 @@
 
     // =====================
 
-    const uidRegex = /\/\/space\.bilibili\.com\/(?<id>\d+)\//g
-    const roomLink = $('.room-owner-username').attr('href')
-    const uid = uidRegex.exec(roomLink)?.groups?.id
-
     const roomReg = /^\/(blanc\/)?(?<id>\d+)/
     let roomId = parseInt(roomReg.exec(location.pathname)?.groups?.id)
+
+    const res = await fetcher('https://api.live.bilibili.com/room/v1/Room/room_init?id='+roomId)
+
+    if (res.data.live_status != 1){
+       console.warn(`不在直播，已略过`)
+       return
+    }
+
+    roomId = res.data.room_id
+    const uid = res.data.uid
 
     let rankGold = undefined
 
@@ -46,16 +52,7 @@
 
     setInterval(async () => {
         try {
-
-          const resp = await fetch(`https://api.live.bilibili.com/xlive/general-interface/v1/rank/getOnlineGoldRank?ruid=${uid}&roomId=${roomId}&page=1&pageSize=1`)
-          if (!resp.ok){
-              throw new Error(resp.statusText)
-          }
-          const data = await resp.json()
-          if (data.code != 0){
-             throw new Error(data.message || data.code)
-          }
-
+          const data = await fetcher(`https://api.live.bilibili.com/xlive/general-interface/v1/rank/getOnlineGoldRank?ruid=${uid}&roomId=${roomId}&page=1&pageSize=1`)
           const online = data.data.onlineNum
           rankGold.innerText = `高能榜(${online})`
         }catch(err){
@@ -64,3 +61,19 @@
         }
     }, seconds * 1000)
 })().catch(console.warn);
+
+
+
+async function fetcher(url) {
+    const res = await fetch(url)
+    if (!res.ok){
+        throw new Error(res.statusText)
+    }
+
+    const data = await res.json()
+    console.debug(data)
+    if (data.code != 0){
+        throw new Error(`B站API请求错误: ${data.message}`)
+    }
+    return data
+}
