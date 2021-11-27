@@ -21,7 +21,7 @@ assignees: ''
 描述一下正常的时候理应出现的结果是如何
 
 **F12截图**
-打开 debug level 然后 F12 截图
+按下 F12 打開 Console 然后 截图
 
 **你的配置**
  - 浏览器 [e.g. chrome, safari] 及版本
