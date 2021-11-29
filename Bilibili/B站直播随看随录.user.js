@@ -1,7 +1,7 @@
 // ==UserScript==
 // @name         B站直播随看随录
 // @namespace    http://tampermonkey.net/
-// @version      0.4
+// @version      0.5
 // @description  无需打开弹幕姬，必要时直接录制的快速切片工具
 // @author       Eric Lam
 // @compatible   Chrome(94.0)
@@ -102,7 +102,8 @@ let limit1gb = false;
        }
         try {
             if (stop_record){
-               startRecord(real_url).then(data => download_flv(data, `${roomId}.flv`))
+                const startDate = new Date().toString().substring(0, 24).replaceAll(' ', '-').replaceAll(':', '-')
+                startRecord(real_url).then(data => download_flv(data, `${roomId}-${startDate}.flv`))
             }else{
                stopRecord()
             }
