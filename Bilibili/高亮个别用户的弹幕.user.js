@@ -1,7 +1,7 @@
 // ==UserScript==
 // @name         高亮个别用户的弹幕
 // @namespace    http://tampermonkey.net/
-// @version      0.7.11
+// @version      0.7.12
 // @description  高亮个别用户的弹幕, 有时候找一些特殊人物(其他直播主出现在直播房间)用
 // @author       Eric Lam
 // @include      /https?:\/\/live\.bilibili\.com\/(blanc\/)?\d+\??.*/
@@ -106,6 +106,15 @@
                 console.log('cannot not find element, wait one second')
                 await sleep(1000)
             }
+
+            function handleUserEnter(uid, uname){
+               console.debug(`user enter: ${uid} (${uname})`)
+                if (!highlightUsers.includes(uid)) return
+                console.log(`name: ${uname} has enter this live room`)
+                toastr.info(`你所关注的用户 ${uname} 已进入此直播间。`, `噔噔咚!`)
+                if (settings.playAudio) audio.join.play()
+            }
+
             console.debug('bliveproxy injected.')
             unsafeWindow.bliveproxy.addCommandHandler('DANMU_MSG', command => {
                 const userId = command.info[2][0]
@@ -123,11 +132,18 @@
             })
             unsafeWindow.bliveproxy.addCommandHandler('INTERACT_WORD', ({data}) => {
                 const {uid, uname} = data
-                console.debug(`user enter: ${uid} (${uname})`)
-                if (!highlightUsers.includes(uid)) return
-                console.log(`name: ${uname} has enter this live room`)
-                toastr.info(`你所关注的用户 ${uname} 已进入此直播间。`, `噔噔咚!`)
-                if (settings.playAudio) audio.join.play()
+                handleUserEnter(uid, uname)
+            })
+            unsafeWindow.bliveproxy.addCommandHandler('ENTRY_EFFECT', ({data}) => {
+                const {uid, copy_writing_v2, copy_writing} = data
+                const title = copy_writing || copy_writing_v2
+                const username = /^欢迎舰长 <%(?<name>.+)?%> 进入直播间$/g.exec(title)?.groups?.name
+                console.debug(uid, username, title)
+                if (!username) {
+                    console.warn(`未知舰长名字: ${uid} (parsing ${title})`)
+                    return
+                }
+                handleUserEnter(uid, username)
             })
             if (settings.opacity){
                 const config = { attributes: false, childList: true, subtree: true }
@@ -224,7 +240,8 @@
 
         $('#delete-btn').on('click', e => {
             getTicked().each((i, id) => $(`#${id}`).parents('.mdui-list-item').remove())
-            mdui.snackbar('删除成功')
+            GM_setValue('settings', getSettings())
+            mdui.snackbar('删除并保存成功')
             $('#delete-btn').hide()
         })
 
@@ -232,7 +249,8 @@
             if (e.which != 13) return
             if (!$('#user-add')[0].checkValidity()) return
             if (await appendUser(e.target.value)){
-               mdui.snackbar('新增成功')
+               GM_setValue('settings', getSettings())
+               mdui.snackbar('新增并保存成功')
                e.target.value = ''
             }
         });
