@@ -1,7 +1,7 @@
 // ==UserScript==
 // @name         封禁直播间点亮牌子
 // @namespace    http://tampermonkey.net/
-// @version      0.1
+// @version      0.2
 // @description  封禁直播间点亮牌子，原理参考了 https://www.bilibili.com/read/cv12463422
 // @author       Eric Lam
 // @match        https://live.bilibili.com/p/html/live-fansmedal-wall/
@@ -25,7 +25,7 @@
 
     window.lighter = (room) => light(room, token)
 
-    const inputElement = `<input style="margin: 0px 15px; width: 20vw" id="light-medal" type="number" min="1" placeholder="輸入要點亮牌子的封禁房間號"/>`
+    const inputElement = `<input style="margin: 0px 15px; width: 20vw" id="light-medal" type="number" min="1" placeholder="输入要点亮牌子的封禁房间号"/>`
     while ($('.title > .mount').length == 0){
         console.log(`not found element, wait a second`)
         await new Promise((res,) => setTimeout(res, 1000))
