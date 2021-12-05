@@ -8,6 +8,7 @@
 // @icon         https://www.google.com/s2/favicons?domain=bilibili.com
 // @require      https://cdn.jsdelivr.net/npm/jquery@3.5.1/dist/jquery.min.js
 // @grant        none
+// @license      MIT 
 // ==/UserScript==
 
 (async function() {
