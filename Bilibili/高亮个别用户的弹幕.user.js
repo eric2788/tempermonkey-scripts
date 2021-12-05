@@ -1,16 +1,15 @@
 // ==UserScript==
 // @name         高亮个别用户的弹幕
 // @namespace    http://tampermonkey.net/
-// @version      0.7.12
+// @version      0.7.13
 // @description  高亮个别用户的弹幕, 有时候找一些特殊人物(其他直播主出现在直播房间)用
 // @author       Eric Lam
 // @include      /https?:\/\/live\.bilibili\.com\/(blanc\/)?\d+\??.*/
 // @include      /https?:\/\/eric2788\.github\.io\/scriptsettings\/highlight-user(\/)?/
 // @include      /https?:\/\/eric2788\.neeemooo\.com\/scriptsettings\/highlight-user(\/)?/
 // @require      https://cdn.jsdelivr.net/npm/jquery@3.5.1/dist/jquery.min.js
-// @require      https://cdn.jsdelivr.net/npm/pako@1.0.10/dist/pako.min.js
-// @require      https://cdn.jsdelivr.net/gh/eric2788/bilibili-jimaku-filter@942bddf2186e7855092f19f8542bc210ce435395/assets/cdn/brotli.bundle.js
-// @require      https://cdn.jsdelivr.net/gh/eric2788/bliveproxy@c9aedbd332edaa91217d02eaf3f910e7386261e4/bliveproxy-unsafe.js
+// @require      https://cdn.jsdelivr.net/gh/google/brotli@5692e422da6af1e991f9182345d58df87866bc5e/js/decode.js
+// @require      https://cdn.jsdelivr.net/gh/eric2788/bliveproxy@d66adfa34cbf41db3d313f49d0814e47cb3b6c4c/bliveproxy-unsafe.js
 // @require      https://cdnjs.cloudflare.com/ajax/libs/toastr.js/latest/toastr.min.js
 // @grant        GM.xmlHttpRequest
 // @grant        GM_setValue
