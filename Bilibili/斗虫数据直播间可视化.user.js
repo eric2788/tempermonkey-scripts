@@ -1,7 +1,7 @@
 // ==UserScript==
 // @name         斗虫数据直播间可视化
 // @namespace    http://tampermonkey.net/
-// @version      0.4.7
+// @version      0.4.8
 // @description  添加数据元素到直播间
 // @author       Eric Lam
 // @grant        GM.xmlHttpRequest
@@ -11,7 +11,7 @@
 // @license      MIT
 // @include      /https?:\/\/live\.bilibili\.com\/(blanc\/)?\d+\??.*/
 // @require      https://cdn.jsdelivr.net/npm/jquery@3.5.1/dist/jquery.min.js
-// @require      https://cdnjs.cloudflare.com/ajax/libs/microsoft-signalr/5.0.0/signalr.js
+// @require https://cdnjs.cloudflare.com/ajax/libs/microsoft-signalr/6.0.1/signalr.min.js
 // @source       https://github.com/eric2788/Bilibili-Vup-Stream-Details
 // ==/UserScript==
 
@@ -69,9 +69,9 @@ async function validate(){
     return false
 }
 
-async function request(url){
+async function request(url, method = 'GET'){
   return GM.xmlHttpRequest({
-          method: "GET",
+          method: method,
           url: url
   })
 }
@@ -131,10 +131,21 @@ const display = {
     }
 }
 
+async function getVupToken(){
+   const res = await request(`https://vup.darkflame.ga/api/roomHub/negotiate?roomId=${roomId}&negotiateVersion=1`, 'POST')
+   const data = JSON.parse(res.responseText)
+   if (!data.connectionToken){
+      console.warn('找不到 Token, 一分钟后尝试')
+      await sleep(60000)
+      return await getVupToken()
+   }
+   return data.connectionToken
+}
 
-// for vtuber
-async function startVupSignalR(){
-    const wss = `wss://vup.darkflame.ga/api/roomHub?roomId=${roomId}`
+// websocket
+async function startVupSignalR(id){
+    const wss = `wss://vup.darkflame.ga/api/roomHub?roomId=${roomId}&id=${id}`
+
     const connection = new signalR.HubConnectionBuilder()
     .withUrl(wss, {
         skipNegotiation: true,
@@ -174,7 +185,8 @@ async function start(){
     }else{
         console.log('this live room is virtual up, using vup.darkflame.ga')
         await insertViewerDom()
-        await startVupSignalR()
+        const token = await getVupToken()
+        await startVupSignalR(token)
     }
 }
 
