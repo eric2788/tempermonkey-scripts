@@ -1,7 +1,7 @@
 // ==UserScript==
 // @name         斗虫数据直播间可视化
 // @namespace    http://tampermonkey.net/
-// @version      0.4.8
+// @version      0.4.10
 // @description  添加数据元素到直播间
 // @author       Eric Lam
 // @grant        GM.xmlHttpRequest
@@ -158,7 +158,8 @@ async function startVupSignalR(id){
     }catch(err){
         console.log(`error while connecting to signalR: ${err}`)
         await sleep(2000)
-        return await startVupSignalR()
+        const token = await getVupToken()
+        return await startVupSignalR(token)
     }
     console.log('signalR connected.')
     connection.on("ReceiveRoomData", (_, data) => {
@@ -170,7 +171,7 @@ async function startVupSignalR(id){
     });
     connection.onclose(() => {
         console.warn(`web socket closed abnormally. reconnting after 3 secs`)
-		sleep(3000).then(startVupSignalR).catch(err => console.error(err.message))
+		sleep(3000).then(() => getVupToken()).then(startVupSignalR).catch(err => console.error(err.message))
     })
     connection.onreconnected(() => console.log(`websocket reconnected.`))
     connection.onreconnecting(error => {
