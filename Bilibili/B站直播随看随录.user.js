@@ -1,7 +1,7 @@
 // ==UserScript==
 // @name         B站直播随看随录
 // @namespace    http://tampermonkey.net/
-// @version      0.5
+// @version      0.6
 // @description  无需打开弹幕姬，必要时直接录制的快速切片工具
 // @author       Eric Lam
 // @compatible   Chrome(94.0)
@@ -79,18 +79,7 @@ let limit1gb = false;
         console.warn('找不到合适的线路，已略过。')
         return
     }
-    let real_url = undefined
-    for (const stream_url of stream_urls){
-        try {
-           testUrlValid(stream_url)
-           real_url = stream_url
-           console.log(`找到可用线路: ${real_url}`)
-           break
-        }catch(err){
-          console.warn(`测试线路 ${stream_url} 时出现错误: ${err}, 寻找下一个节点`)
-          continue
-        }
-    }
+    let real_url = await findSuitableURL(stream_urls)
 
     const rows = $('.rows-ctnr')
     rows.append(`<button id="record">开始录制</button>`)
@@ -103,17 +92,38 @@ let limit1gb = false;
         try {
             if (stop_record){
                 const startDate = new Date().toString().substring(0, 24).replaceAll(' ', '-').replaceAll(':', '-')
-                startRecord(real_url).then(data => download_flv(data, `${roomId}-${startDate}.flv`))
+                startRecord(real_url).then(data => download_flv(data, `${roomId}-${startDate}.flv`)).catch(err => { throw new Error(err) })
             }else{
                stopRecord()
             }
         }catch(err){
           alert(`错误: ${err?.message ?? err}`)
           console.error(err)
+          console.log(`正在重新寻找可用线路`)
+          findSuitableURL(stream_urls).then(url => {
+            if (!url) {
+               console.warn('找不到合适的线路，已略过。')
+               return
+            }
+            real_url = url
+          })
         }
     })
 
 })().catch(console.warn);
+
+async function findSuitableURL(stream_urls){
+   for (const stream_url of stream_urls){
+        try {
+           await testUrlValid(stream_url)
+           console.log(`找到可用线路: ${stream_url}`)
+           return stream_url
+        }catch(err){
+          console.warn(`测试线路 ${stream_url} 时出现错误: ${err}, 寻找下一个节点`)
+        }
+    }
+   return undefined
+}
 
 async function fetcher(url) {
     const res = await fetch(url)
