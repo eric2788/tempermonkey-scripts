@@ -1,7 +1,7 @@
 // ==UserScript==
 // @name         斗虫数据直播间可视化
 // @namespace    http://tampermonkey.net/
-// @version      0.4.10
+// @version      0.4.11
 // @description  添加数据元素到直播间
 // @author       Eric Lam
 // @grant        GM.xmlHttpRequest
@@ -104,7 +104,7 @@ async function insertViewerDom(){
         </div>
         <span class="action-text v-middle live-skin-normal-text dp-i-block">】</span>
     `)
-    const popularEle = $('div[title=人气值]')
+    const popularEle = $('div.not-hover > span.action-text.v-middle')
     popularEle.append(`
         (最高: <span id="stream-highest-popular">--</span>)
     `)
