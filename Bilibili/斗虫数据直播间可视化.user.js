@@ -1,7 +1,7 @@
 // ==UserScript==
 // @name         斗虫数据直播间可视化
 // @namespace    http://tampermonkey.net/
-// @version      0.4.11
+// @version      0.4.12
 // @description  添加数据元素到直播间
 // @author       Eric Lam
 // @grant        GM.xmlHttpRequest
@@ -84,10 +84,9 @@ async function sleep(ms){
 
 async function insertViewerDom(){
     const ele = $('.upper-row > .right-ctnr')
-    if ((ele?.length ?? 0) === 0){
-        console.warn('unknown element. retry after 3 secs')
+    while ((ele?.length ?? 0) === 0){
+        console.warn('unknown right-ctnr element. retry after 3 secs')
         await sleep(3000)
-        return await insertViewerDom()
     }
     ele.append(`
         <span class="action-text v-middle live-skin-normal-text dp-i-block">【</span>
@@ -105,6 +104,10 @@ async function insertViewerDom(){
         <span class="action-text v-middle live-skin-normal-text dp-i-block">】</span>
     `)
     const popularEle = $('div.not-hover > span.action-text.v-middle')
+    while ((popularEle?.length ?? 0) === 0){
+        console.warn('unknown popular element. retry after 3 secs')
+        await sleep(3000)
+    }
     popularEle.append(`
         (最高: <span id="stream-highest-popular">--</span>)
     `)
