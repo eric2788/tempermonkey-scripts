@@ -103,7 +103,7 @@ async function insertViewerDom(){
         </div>
         <span class="action-text v-middle live-skin-normal-text dp-i-block">】</span>
     `)
-    const popularEle = $('div.not-hover > span.action-text.v-middle')
+    const popularEle = $('div.not-hover')
     while ((popularEle?.length ?? 0) === 0){
         console.warn('unknown popular element. retry after 3 secs')
         await sleep(3000)
