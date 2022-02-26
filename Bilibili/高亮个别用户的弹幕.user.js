@@ -136,7 +136,7 @@
             unsafeWindow.bliveproxy.addCommandHandler('ENTRY_EFFECT', ({data}) => {
                 const {uid, copy_writing_v2, copy_writing} = data
                 const title = copy_writing || copy_writing_v2
-                const username = /^欢迎 <%(?<name>.+)?%> 进入直播间$/g.exec(title)?.groups?.name
+                const username = /^欢迎舰长 <%(?<name>.+)?%> 进入直播间$/g.exec(title)?.groups?.name ?? /^欢迎 <%(?<name>.+)?%> 进入直播间$/g.exec(title)?.groups?.name
                 console.debug(uid, username, title)
                 if (!username) {
                     console.warn(`未知舰长名字: ${uid} (parsing ${title})`)
