@@ -1,7 +1,7 @@
 // ==UserScript==
 // @name         高亮个别用户的弹幕
 // @namespace    http://tampermonkey.net/
-// @version      0.7.14
+// @version      0.7.15
 // @description  高亮个别用户的弹幕, 有时候找一些特殊人物(其他直播主出现在直播房间)用
 // @author       Eric Lam
 // @include      /https?:\/\/live\.bilibili\.com\/(blanc\/)?\d+\??.*/
@@ -136,7 +136,7 @@
             unsafeWindow.bliveproxy.addCommandHandler('ENTRY_EFFECT', ({data}) => {
                 const {uid, copy_writing_v2, copy_writing} = data
                 const title = copy_writing || copy_writing_v2
-                const username = /^欢迎舰长 <%(?<name>.+)?%> 进入直播间$/g.exec(title)?.groups?.name ?? /^欢迎 <%(?<name>.+)?%> 进入直播间$/g.exec(title)?.groups?.name
+                const username = /^欢迎(舰长)?|(提督)?|(总督)? <%(?<name>.+)?%> 进入直播间$/g.exec(title)?.groups?.name ?? /^欢迎 <%(?<name>.+)?%> 进入直播间$/g.exec(title)?.groups?.name
                 console.debug(uid, username, title)
                 if (!username) {
                     console.warn(`未知舰长名字: ${uid} (parsing ${title})`)
