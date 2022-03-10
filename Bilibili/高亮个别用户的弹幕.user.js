@@ -4,6 +4,7 @@
 // @version      0.7.15
 // @description  高亮个别用户的弹幕, 有时候找一些特殊人物(其他直播主出现在直播房间)用
 // @author       Eric Lam
+// @include      https://sc.chinaz.com/tag_yinxiao/tongzhi.html
 // @include      /https?:\/\/live\.bilibili\.com\/(blanc\/)?\d+\??.*/
 // @include      /https?:\/\/eric2788\.github\.io\/scriptsettings\/highlight-user(\/)?/
 // @include      /https?:\/\/eric2788\.neeemooo\.com\/scriptsettings\/highlight-user(\/)?/
@@ -40,9 +41,7 @@
          color: '#FFFF00',
          opacity: 1.0,
          playAudio: false,
-         sound: '966q9uq4',
          playAudioDanmu: false,
-         sound_danmu: 'ma2g204k',
          join_notify_duration: 5000,
          join_notify_position: "bottom-left",
          volume: {
@@ -52,7 +51,13 @@
        }
     }
 
+    const defaultSounds = {
+        join: '//downsc.chinaz.net/Files/DownLoad/sound1/201911/12221.mp3',
+        danmu: '//downsc.chinaz.net/Files/DownLoad/sound1/202003/12643.mp3'
+    }
+
     const storage = GM_getValue('settings', defaultSettings)
+    const sounds = GM_getValue('sounds', defaultSounds)
     const { highlightUsers, settings: currentSettings } = storage
     const settings = { ...defaultSettings.settings, ...currentSettings }
     console.debug(highlightUsers)
@@ -69,8 +74,8 @@
         $(document.head).append(`<link href="https://cdn.jsdelivr.net/gh/CodeSeven/toastr@2.1.4/build/toastr.min.css" rel="stylesheet" />`)
 
         const audio = {
-            join: new Audio(`https://mobcup.net/d/${settings.sound}/mp3`),
-            danmu: new Audio(`https://mobcup.net/d/${settings.sound_danmu}/mp3`)
+            join: new Audio(sounds.join),
+            danmu: new Audio(sounds.danmu)
         }
         audio.join.volume = settings.volume.join
         audio.danmu.volume = settings.volume.danmu
@@ -166,7 +171,7 @@
         }
 
         await launch()
-    }else if (["https://eric2788.github.io", "https://eric2788.neeemooo.com"].includes(location.origin)){
+    } else if (["https://eric2788.github.io", "https://eric2788.neeemooo.com", "http://127.0.0.1:5500"].includes(location.origin)){
         while(!unsafeWindow.mdui){
            console.debug('cannot find mdui, wait one second')
            await sleep(1000)
@@ -263,18 +268,24 @@
             mdui.snackbar('保存成功')
         })
 
-        $('#try-listen').on('click', () => {
-           const selected = $('input[name=sound]:checked').val()
-           const audio = new Audio(`https://mobcup.net/d/${selected}/mp3`)
+        $('#try-listen-join').on('click', () => {
+           const audio = new Audio(sounds.join)
            audio.volume = parseVolume('#volume-join')
-           audio.addEventListener('canplaythrough', () => audio.play())
+           $('#try-listen-join').attr('disabled', '')
+           audio.addEventListener('canplaythrough', () => {
+                audio.play()
+                $('#try-listen-join').removeAttr('disabled')
+           })
         })
 
         $('#try-listen-danmu').on('click', () => {
-           const selected = $('input[name=sound-danmu]:checked').val()
-           const audio = new Audio(`https://mobcup.net/d/${selected}/mp3`)
+           const audio = new Audio(sounds.danmu)
            audio.volume = parseVolume('#volume-danmu')
-           audio.addEventListener('canplaythrough', () => audio.play())
+            $('#try-listen-danmu').attr('disabled', '')
+           audio.addEventListener('canplaythrough', () => {
+               audio.play()
+               $('#try-listen-danmu').removeAttr('disabled')
+           })
         })
 
         const joinNotifyPosSelect = new mdui.Select('#join-notify-position', {position: 'bottom'})
@@ -313,9 +324,7 @@
             $('#color-picker').val(settings.color)
             $('#color-picker-btn').css('color', settings.color)
             $('#play-audio').prop('checked', settings.playAudio)
-            $('input[name=sound]').filter((i, e) => $(e).val() == settings.sound).prop('checked', true)
             $('#play-audio-danmu').prop('checked', settings.playAudioDanmu)
-            $('input[name=sound-danmu]').filter((i, e) => $(e).val() == settings.sound_danmu).prop('checked', true)
             $('#join-notify-duration')[0].valueAsNumber = settings.join_notify_duration
             $('#join-notify-position').val(settings.join_notify_position)
             $('#volume-danmu').val(settings.volume.danmu * 100)
@@ -334,8 +343,6 @@
                 opacity: $('#opacity')[0].valueAsNumber,
                 color: $('#color')[0].checkValidity() ? $('#color').val() : '',
                 playAudio: $('#play-audio').prop('checked'),
-                sound: $('input[name=sound]:checked').val(),
-                sound_danmu: $('input[name=sound-danmu]:checked').val(),
                 playAudioDanmu: $('#play-audio-danmu').prop('checked'),
                 join_notify_duration: $('#join-notify-duration')[0].valueAsNumber,
                 join_notify_position: $('#join-notify-position').val(),
@@ -353,6 +360,39 @@
             return parseFloat((val / 100).toFixed(2)) || 1.0
         }
 
+    } else if (location.origin === 'https://sc.chinaz.com'){
+        while ($('div.audio-class').length == 0){
+           await sleep(1000)
+        }
+        $('div.audio-class').empty();
+        $('div.audio-class')
+            .append(`<a href="javascript: void(0)" id="danmu-select">选为弹幕通知</a>`)
+            .append('<a href="javascript: void(0)" id="join-select">选为进入通知</a>')
+        $('a#danmu-select').on('click', e => {
+          e.preventDefault();
+          if (!window.confirm('确定选择为弹幕通知音效?')) return
+          const url = $(e.target).parents('.audio-item').children('audio').attr('src')
+          if (!url) {
+             alert('选择失败，无效的URL')
+             return
+          }
+          sounds.danmu = url
+          GM_setValue('sounds', sounds)
+          alert('设置成功')
+        })
+
+        $('a#join-select').on('click', e => {
+          e.preventDefault();
+          if (!window.confirm('确定选择为进入通知音效?')) return
+          const url = $(e.target).parents('.audio-item').children('audio').attr('src')
+          if (!url) {
+             alert('选择失败，无效的URL')
+             return
+          }
+          sounds.join = url
+          GM_setValue('sounds', sounds)
+          alert('设置成功')
+        })
     }
 })().catch(console.error);
 
