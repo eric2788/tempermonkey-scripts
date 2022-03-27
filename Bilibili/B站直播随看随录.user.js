@@ -1,7 +1,7 @@
 // ==UserScript==
 // @name         B站直播随看随录
 // @namespace    http://tampermonkey.net/
-// @version      0.6
+// @version      0.7
 // @description  无需打开弹幕姬，必要时直接录制的快速切片工具
 // @author       Eric Lam
 // @compatible   Chrome(94.0)
@@ -79,34 +79,24 @@ let limit1gb = false;
         console.warn('找不到合适的线路，已略过。')
         return
     }
-    let real_url = await findSuitableURL(stream_urls)
 
     const rows = $('.rows-ctnr')
     rows.append(`<button id="record">开始录制</button>`)
 
-    $('#record').on('click', () => {
-       if (real_url === undefined){
-           alert('没有可用的直播线路。')
-           return
-       }
+    //刷新一次可用线路
+    //await findSuitableURL(stream_urls)
+
+    $('#record').on('click', async () => {
         try {
             if (stop_record){
                 const startDate = new Date().toString().substring(0, 24).replaceAll(' ', '-').replaceAll(':', '-')
-                startRecord(real_url).then(data => download_flv(data, `${roomId}-${startDate}.flv`)).catch(err => { throw new Error(err) })
+                startRecord(stream_urls).then(data => download_flv(data, `${roomId}-${startDate}.flv`)).catch(err => { throw new Error(err) })
             }else{
                stopRecord()
             }
         }catch(err){
-          alert(`错误: ${err?.message ?? err}`)
+          alert(`啟用录制时出现错误: ${err?.message ?? err}`)
           console.error(err)
-          console.log(`正在重新寻找可用线路`)
-          findSuitableURL(stream_urls).then(url => {
-            if (!url) {
-               console.warn('找不到合适的线路，已略过。')
-               return
-            }
-            real_url = url
-          })
         }
     })
 
@@ -126,7 +116,10 @@ async function findSuitableURL(stream_urls){
 }
 
 async function fetcher(url) {
-    const res = await fetch(url)
+    const controller = new AbortController();
+    const id = setTimeout(() => controller.abort(), 5000); // 五秒timeout
+    const res = await fetch(url, { signal: controller.signal })
+    clearTimeout(id)
     if (!res.ok){
         throw new Error(res.statusText)
     }
@@ -202,18 +195,36 @@ function formatSize(size) {
   }
 }
 
-async function startRecord(url) {
+async function startRecord(urls) {
     await clearRecords() // 清空之前的记录
-    const res = await fetch(url, { credentials: 'same-origin' })
-    if (!res.ok){
-        throw new Error(res.statusText)
+
+    $('#record').attr('disabled', '')
+    $('#record')[0].innerText = '寻找线路中'
+
+    let res = undefined
+    for (const url of urls) {
+       try {
+          console.log('正在测试目前线路...')
+          const controller = new AbortController();
+          const id = setTimeout(() => controller.abort(), 1000);
+          res = await fetch(url, { credentials: 'same-origin', signal: controller.signal })
+          clearTimeout(id)
+          if (res.ok) break
+       }catch(err){
+           console.warn(`使用线路 ${url} 时出现错误: ${err}, 使用下一个节点`)
+       }
     }
+    if (!res) {
+      throw new Error('没有可用线路，稍后再尝试？')
+    }
+    console.log('线路请求成功, 正在开始录制')
     startTimer()
     const reader = res.body.getReader();
     stop_record = false
     const chunks = [] // 不支援 indexeddb 时采用
     let size = 0
     console.log('录制已经开始...')
+    $('#record').removeAttr('disabled')
     while (!stop_record){
       const {done, value } = await reader.read()
       // 下播
