@@ -1,12 +1,9 @@
 // ==UserScript==
 // @name         B站直播随看随录
 // @namespace    http://tampermonkey.net/
-// @version      0.7
+// @version      0.8
 // @description  无需打开弹幕姬，必要时直接录制的快速切片工具
 // @author       Eric Lam
-// @compatible   Chrome(94.0)
-// @compatible   Firefox(91.0)
-// @compatible   Edge(94.0)
 // @license      MIT
 // @include      /https?:\/\/live\.bilibili\.com\/(blanc\/)?\d+\??.*/
 // @require      https://cdn.jsdelivr.net/npm/jquery@3.5.1/dist/jquery.min.js
@@ -73,12 +70,7 @@ let limit1gb = false;
     const urlGetter = new RoomPlayInfo()
     // ===================================================
 
-    const stream_urls = await urlGetter.getUrl(roomId)
 
-    if (stream_urls.length == 0){
-        console.warn('找不到合适的线路，已略过。')
-        return
-    }
 
     const rows = $('.rows-ctnr')
     rows.append(`<button id="record">开始录制</button>`)
@@ -90,7 +82,7 @@ let limit1gb = false;
         try {
             if (stop_record){
                 const startDate = new Date().toString().substring(0, 24).replaceAll(' ', '-').replaceAll(':', '-')
-                startRecord(stream_urls).then(data => download_flv(data, `${roomId}-${startDate}.flv`)).catch(err => { throw new Error(err) })
+                startRecord(urlGetter, roomId).then(data => download_flv(data, `${roomId}-${startDate}.flv`)).catch(err => { throw new Error(err) })
             }else{
                stopRecord()
             }
@@ -195,11 +187,17 @@ function formatSize(size) {
   }
 }
 
-async function startRecord(urls) {
+async function startRecord(urlGetter, roomId) {
     await clearRecords() // 清空之前的记录
 
     $('#record').attr('disabled', '')
     $('#record')[0].innerText = '寻找线路中'
+
+    const urls = await urlGetter.getUrl(roomId)
+
+    if (urls.length == 0){
+        throw new Error('没有可用线路，稍后再尝试？')
+    }
 
     let res = undefined
     for (const url of urls) {
@@ -209,6 +207,7 @@ async function startRecord(urls) {
           const id = setTimeout(() => controller.abort(), 1000);
           res = await fetch(url, { credentials: 'same-origin', signal: controller.signal })
           clearTimeout(id)
+          console.log(...res.headers)
           if (res.ok) break
        }catch(err){
            console.warn(`使用线路 ${url} 时出现错误: ${err}, 使用下一个节点`)
