@@ -187,6 +187,9 @@ function formatSize(size) {
   }
 }
 
+
+const banned_urls = new Set();
+
 async function startRecord(urlGetter, roomId) {
     await clearRecords() // 清空之前的记录
 
@@ -203,12 +206,15 @@ async function startRecord(urlGetter, roomId) {
     for (const url of urls) {
        try {
           console.log('正在测试目前线路...')
+          if (banned_urls.has(url)) {
+            console.warn('该线路在黑名单内，已略过')
+            continue
+          }
           const controller = new AbortController();
           const id = setTimeout(() => controller.abort(), 1000);
           res = await fetch(url, { credentials: 'same-origin', signal: controller.signal })
           clearTimeout(id)
-          console.log(...res.headers)
-          if (res.ok) break
+          if (res.ok && !res.bodyUsed) break
        }catch(err){
            console.warn(`使用线路 ${url} 时出现错误: ${err}, 使用下一个节点`)
        }
@@ -228,6 +234,10 @@ async function startRecord(urlGetter, roomId) {
       const {done, value } = await reader.read()
       // 下播
       if (done){
+         if (size == 0) {
+            banned_urls.add(res.url)
+            throw new Error('此线路不可用，请再尝试一次。')
+         }
          stop_record = true
          break
       }
