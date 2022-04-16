@@ -1,7 +1,7 @@
 // ==UserScript==
 // @name         高亮个别用户的弹幕
 // @namespace    http://tampermonkey.net/
-// @version      0.7.15
+// @version      0.7.16
 // @description  高亮个别用户的弹幕, 有时候找一些特殊人物(其他直播主出现在直播房间)用
 // @author       Eric Lam
 // @include      https://sc.chinaz.com/tag_yinxiao/tongzhi.html
@@ -138,14 +138,23 @@
                 const {uid, uname} = data
                 handleUserEnter(uid, uname)
             })
-            unsafeWindow.bliveproxy.addCommandHandler('ENTRY_EFFECT', ({data}) => {
-                const {uid, copy_writing_v2, copy_writing} = data
-                const title = copy_writing || copy_writing_v2
-                const username = /^欢迎(舰长)?|(提督)?|(总督)? <%(?<name>.+)?%> 进入直播间$/g.exec(title)?.groups?.name ?? /^欢迎 <%(?<name>.+)?%> 进入直播间$/g.exec(title)?.groups?.name
-                console.debug(uid, username, title)
-                if (!username) {
-                    console.warn(`未知舰长名字: ${uid} (parsing ${title})`)
-                    return
+            unsafeWindow.bliveproxy.addCommandHandler('ENTRY_EFFECT', async ({data}) => {
+                const { uid } = data
+                if (!highlightUsers.includes(userId)) return
+                let username;
+                try {
+                  const cache = GM_getValue(userId, null)
+                  if (cache != null && cache.name != `无法索取用户资讯`){
+                      username = cache.name
+                  }else{
+                     const { name } = await webRequest(`https://api.bilibili.com/x/space/acc/info?mid=${userId}&jsonp=jsonp`)
+                     username = name
+                  }
+                  console.debug(`成功辨别舰长 ${uid} 名称为 ${name}`)
+                }catch(err){
+                   console.error(`索取大航海用户资讯错误: ${err}`)
+                   console.warn(`将使用 uid 作为名称`)
+                   username = `(UID: ${uid})`
                 }
                 handleUserEnter(uid, username)
             })
