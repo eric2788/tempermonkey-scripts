@@ -1,7 +1,7 @@
 // ==UserScript==
 // @name         高亮个别用户的弹幕
 // @namespace    http://tampermonkey.net/
-// @version      0.7.16
+// @version      0.7.17
 // @description  高亮个别用户的弹幕, 有时候找一些特殊人物(其他直播主出现在直播房间)用
 // @author       Eric Lam
 // @include      https://sc.chinaz.com/tag_yinxiao/tongzhi.html
@@ -140,14 +140,14 @@
             })
             unsafeWindow.bliveproxy.addCommandHandler('ENTRY_EFFECT', async ({data}) => {
                 const { uid } = data
-                if (!highlightUsers.includes(userId)) return
+                if (!highlightUsers.includes(uid)) return
                 let username;
                 try {
                   const cache = GM_getValue(userId, null)
                   if (cache != null && cache.name != `无法索取用户资讯`){
                       username = cache.name
                   }else{
-                     const { name } = await webRequest(`https://api.bilibili.com/x/space/acc/info?mid=${userId}&jsonp=jsonp`)
+                     const { name } = await webRequest(`https://api.bilibili.com/x/space/acc/info?mid=${uid}&jsonp=jsonp`)
                      username = name
                   }
                   console.debug(`成功辨别舰长 ${uid} 名称为 ${name}`)
