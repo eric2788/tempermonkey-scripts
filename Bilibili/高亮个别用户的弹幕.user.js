@@ -143,7 +143,7 @@
                 if (!highlightUsers.includes(uid)) return
                 let username;
                 try {
-                  const cache = GM_getValue(userId, null)
+                  const cache = GM_getValue(uid, null)
                   if (cache != null && cache.name != `无法索取用户资讯`){
                       username = cache.name
                   }else{
