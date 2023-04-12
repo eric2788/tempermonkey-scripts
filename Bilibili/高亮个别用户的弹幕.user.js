@@ -180,7 +180,7 @@
                             const n = node.innerText !== undefined ? node : node.parentElement
                             const jimaku = $(n)
                             jimaku.css('opacity', `${settings.opacity}`)
-                            jimaku.css('color', `#${hexToNum(settings.color)}`)
+                            jimaku.css('color', `${settings.color}`)
                             jimaku.text(`${danmaku}(${user})`);
                             highlights.delete(danmaku)
                         }
