@@ -1,7 +1,7 @@
 // ==UserScript==
 // @name         高亮个别用户的弹幕
 // @namespace    http://tampermonkey.net/
-// @version      0.7.18
+// @version      0.7.19
 // @description  高亮个别用户的弹幕, 有时候找一些特殊人物(其他直播主出现在直播房间)用
 // @author       Eric Lam
 // @include      https://sc.chinaz.com/tag_yinxiao/tongzhi.html
@@ -80,6 +80,7 @@
         audio.join.volume = settings.volume.join
         audio.danmu.volume = settings.volume.danmu
         const highlights = new Set()
+        const highlightsMapper = new Map()
         toastr.options = {
             "closeButton": false,
             "debug": false,
@@ -98,7 +99,7 @@
             "hideMethod": "fadeOut"
         }
 
-        const elements = ['.bilibili-live-player-video-danmaku', '.danmaku-item-container']
+        const elements = ['.danmaku-item-container']
 
         async function launch(){
             console.debug('launching highlight filter...')
@@ -125,13 +126,18 @@
                 console.debug(`user send danmu: ${userId}`)
                 if (!highlightUsers.includes(userId)) return
                 console.debug('detected highlighted user: '+userId)
+
+                /* 新版直播间无法改写弹幕信息 👇
                 command.info[0][13] = "{}" // 把那些圖片彈幕打回原形
                 if (settings.color) {
                     command.info[0][3] = hexToNum(settings.color)
                 }
                 command.info[1] += `(${command.info[2][1]})`
-                console.debug(`converted danmaku: ${command.info[1]}`)
+                console.debug(`converted danmaku: ${command.info[1]}`)]
                 highlights.add(command.info[1])
+                */
+
+                highlightsMapper.set(command.info[1], command.info[2][1]);
                 if (settings.playAudioDanmu) audio.danmu.play()
             })
             unsafeWindow.bliveproxy.addCommandHandler('INTERACT_WORD', ({data}) => {
@@ -163,19 +169,25 @@
                 function danmakuCheckCallback(mutationsList){
                     for(const mu of mutationsList){
                         for (const node of mu.addedNodes){
+                            console.log('node', node);
                             const danmaku = node?.innerText?.trim() ?? node?.data?.trim()
+                            console.log('danmaku', danmaku)
                             if (danmaku === undefined || danmaku === '') continue
-                            if (!highlights.has(danmaku)) continue
-                            console.debug('highlighting danmaku: '+danmaku)
+                            //if (!highlights.has(danmaku)) continue
+                            if (!highlightsMapper.has(danmaku)) continue;
+                            const user = highlightsMapper.get(danmaku);
+                            console.debug('highlighting danmaku: ', danmaku, ' with user: ', user)
                             const n = node.innerText !== undefined ? node : node.parentElement
                             const jimaku = $(n)
                             jimaku.css('opacity', `${settings.opacity}`)
+                            jimaku.css('color', `#${hexToNum(settings.color)}`)
+                            jimaku.text(`${danmaku}(${user})`);
                             highlights.delete(danmaku)
                         }
                     }
                 }
                 const danmakuObserver = new MutationObserver((mu, obs) => danmakuCheckCallback(mu))
-                danmakuObserver.observe($('.bilibili-live-player-video-danmaku')[0] || $('.danmaku-item-container')[0], config)
+                danmakuObserver.observe($('.danmaku-item-container')[0], config)
             }
         }
 
