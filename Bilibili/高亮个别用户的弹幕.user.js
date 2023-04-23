@@ -1,7 +1,7 @@
 // ==UserScript==
 // @name         高亮个别用户的弹幕
 // @namespace    http://tampermonkey.net/
-// @version      0.7.19
+// @version      0.7.20
 // @description  高亮个别用户的弹幕, 有时候找一些特殊人物(其他直播主出现在直播房间)用
 // @author       Eric Lam
 // @include      https://sc.chinaz.com/tag_yinxiao/tongzhi.html
@@ -10,7 +10,7 @@
 // @include      /https?:\/\/eric2788\.neeemooo\.com\/scriptsettings\/highlight-user(\/)?/
 // @require      https://cdn.jsdelivr.net/npm/jquery@3.5.1/dist/jquery.min.js
 // @require      https://cdn.jsdelivr.net/gh/google/brotli@5692e422da6af1e991f9182345d58df87866bc5e/js/decode.js
-// @require      https://cdn.jsdelivr.net/gh/eric2788/bliveproxy@d66adfa34cbf41db3d313f49d0814e47cb3b6c4c/bliveproxy-unsafe.js
+// @require      https://greasyfork.org/scripts/417560-bliveproxy/code/bliveproxy.js?version=1045452
 // @require      https://lf26-cdn-tos.bytecdntp.com/cdn/expire-1-M/toastr.js/2.1.4/toastr.min.js
 // @grant        GM.xmlHttpRequest
 // @grant        GM_setValue
@@ -135,8 +135,8 @@
                 command.info[1] += `(${command.info[2][1]})`
                 console.debug(`converted danmaku: ${command.info[1]}`)]
                 highlights.add(command.info[1])
-                */
 
+                */
                 highlightsMapper.set(command.info[1], command.info[2][1]);
                 if (settings.playAudioDanmu) audio.danmu.play()
             })
@@ -173,8 +173,8 @@
                             const danmaku = node?.innerText?.trim() ?? node?.data?.trim()
                             console.log('danmaku', danmaku)
                             if (danmaku === undefined || danmaku === '') continue
-                            //if (!highlights.has(danmaku)) continue
-                            if (!highlightsMapper.has(danmaku)) continue;
+                            if (!highlights.has(danmaku)) continue
+                           if (!highlightsMapper.has(danmaku)) continue;
                             const user = highlightsMapper.get(danmaku);
                             console.debug('highlighting danmaku: ', danmaku, ' with user: ', user)
                             const n = node.innerText !== undefined ? node : node.parentElement
@@ -183,6 +183,7 @@
                             jimaku.css('color', `${settings.color}`)
                             jimaku.text(`${danmaku}(${user})`);
                             highlights.delete(danmaku)
+                            highlightsMapper.delete(danmaku)
                         }
                     }
                 }
