@@ -1,7 +1,7 @@
 // ==UserScript==
 // @name         高亮个别用户的弹幕
 // @namespace    http://tampermonkey.net/
-// @version      0.7.20
+// @version      0.7.21
 // @description  高亮个别用户的弹幕, 有时候找一些特殊人物(其他直播主出现在直播房间)用
 // @author       Eric Lam
 // @include      https://sc.chinaz.com/tag_yinxiao/tongzhi.html
@@ -173,8 +173,8 @@
                             const danmaku = node?.innerText?.trim() ?? node?.data?.trim()
                             console.log('danmaku', danmaku)
                             if (danmaku === undefined || danmaku === '') continue
-                            if (!highlights.has(danmaku)) continue
-                           if (!highlightsMapper.has(danmaku)) continue;
+                            //if (!highlights.has(danmaku)) continue
+                            if (!highlightsMapper.has(danmaku)) continue;
                             const user = highlightsMapper.get(danmaku);
                             console.debug('highlighting danmaku: ', danmaku, ' with user: ', user)
                             const n = node.innerText !== undefined ? node : node.parentElement
