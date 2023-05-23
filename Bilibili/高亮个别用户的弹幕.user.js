@@ -1,7 +1,7 @@
 // ==UserScript==
 // @name         高亮个别用户的弹幕
 // @namespace    http://tampermonkey.net/
-// @version      0.7.21
+// @version      0.7.22
 // @description  高亮个别用户的弹幕, 有时候找一些特殊人物(其他直播主出现在直播房间)用
 // @author       Eric Lam
 // @include      https://sc.chinaz.com/tag_yinxiao/tongzhi.html
@@ -22,57 +22,74 @@
 // @website      https://eric2788.github.io/scriptsettings/highlight-user
 // @homepage     https://eric2788.neeemooo.com/scriptsettings/highlight-user
 // ==/UserScript==
-
+ 
 (async function() {
     'use strict';
-
+ 
     const defaultSettings = {
-       highlightUsers: [
-        396024008, // 日本兄贵
-        604890122, // 日本兄贵
-        623441609, // 凤玲天天 (DD)
-        1618670884, // 日本兄贵
-        406805563, // 乙女音
-        2299184, // 古守
-        198297, // 冰糖
-        1576121 // paryi
-       ],
-       settings: {
-         color: '#FFFF00',
-         opacity: 1.0,
-         playAudio: false,
-         playAudioDanmu: false,
-         join_notify_duration: 5000,
-         join_notify_position: "bottom-left",
-         volume: {
-            danmu: 1.0,
-            join: 1.0
-         }
-       }
+        highlightUsers: [
+            396024008, // 日本兄贵
+            604890122, // 日本兄贵
+            623441609, // 凤玲天天 (DD)
+            1618670884, // 日本兄贵
+            406805563, // 乙女音
+            2299184, // 古守
+            198297, // 冰糖
+            1576121 // paryi
+        ],
+        settings: {
+            color: '#FFFF00',
+            opacity: 1.0,
+            playAudio: false,
+            playAudioDanmu: false,
+            join_notify_duration: 5000,
+            join_notify_position: "bottom-left",
+            volume: {
+                danmu: 1.0,
+                join: 1.0
+            }
+        }
     }
-
+ 
     const defaultSounds = {
         join: '//downsc.chinaz.net/Files/DownLoad/sound1/201911/12221.mp3',
         danmu: '//downsc.chinaz.net/Files/DownLoad/sound1/202003/12643.mp3'
     }
-
+ 
     const storage = GM_getValue('settings', defaultSettings)
     const sounds = GM_getValue('sounds', defaultSounds)
     const { highlightUsers, settings: currentSettings } = storage
     const settings = { ...defaultSettings.settings, ...currentSettings }
     console.debug(highlightUsers)
     console.debug(settings)
-
+ 
+ 
+    async function requestUserInfo(mid) {
+        let error = null;
+        const baseUrls = ['https://api.bilibili.com/x/space/acc/info?mid=', 'https://api.bilibili.com/x/space/wbi/acc/info?mid=']
+        for(const base of baseUrls) {
+            try {
+                return await webRequest(`${base}${mid}&jsonp=jsonp`)
+            }catch(err){
+                console.error(`使用 ${base} 請求時出現錯誤: ${err?.message ?? err}`);
+                console.warn(`嘗試使用下一個API`)
+                error = err;
+            }
+        }
+        console.warn('沒有可以使用的下一個API，將拋出錯誤')
+        throw error;
+    }
+ 
     if (location.origin == 'https://live.bilibili.com'){
         console.log('using highlight filter')
-
+ 
         function hexToNum(color){
             const hex = color.substr(1)
             return parseInt(hex, 16)
         }
-
+ 
         $(document.head).append(`<link href="https://lf3-cdn-tos.bytecdntp.com/cdn/expire-1-M/toastr.js/2.1.4/toastr.min.css" rel="stylesheet" />`)
-
+ 
         const audio = {
             join: new Audio(sounds.join),
             danmu: new Audio(sounds.danmu)
@@ -98,9 +115,9 @@
             "showMethod": "fadeIn",
             "hideMethod": "fadeOut"
         }
-
+ 
         const elements = ['.danmaku-item-container']
-
+ 
         async function launch(){
             console.debug('launching highlight filter...')
             while(!unsafeWindow.bliveproxy){
@@ -111,22 +128,22 @@
                 console.log('cannot not find element, wait one second')
                 await sleep(1000)
             }
-
+ 
             function handleUserEnter(uid, uname){
-               console.debug(`user enter: ${uid} (${uname})`)
+                console.debug(`user enter: ${uid} (${uname})`)
                 if (!highlightUsers.includes(uid)) return
                 console.log(`name: ${uname} has enter this live room`)
                 toastr.info(`你所关注的用户 ${uname} 已进入此直播间。`, `噔噔咚!`)
                 if (settings.playAudio) audio.join.play()
             }
-
+ 
             console.debug('bliveproxy injected.')
             unsafeWindow.bliveproxy.addCommandHandler('DANMU_MSG', command => {
                 const userId = command.info[2][0]
                 console.debug(`user send danmu: ${userId}`)
                 if (!highlightUsers.includes(userId)) return
                 console.debug('detected highlighted user: '+userId)
-
+ 
                 /* 新版直播间无法改写弹幕信息 👇
                 command.info[0][13] = "{}" // 把那些圖片彈幕打回原形
                 if (settings.color) {
@@ -135,7 +152,7 @@
                 command.info[1] += `(${command.info[2][1]})`
                 console.debug(`converted danmaku: ${command.info[1]}`)]
                 highlights.add(command.info[1])
-
+ 
                 */
                 highlightsMapper.set(command.info[1], command.info[2][1]);
                 if (settings.playAudioDanmu) audio.danmu.play()
@@ -149,18 +166,18 @@
                 if (!highlightUsers.includes(uid)) return
                 let username;
                 try {
-                  const cache = GM_getValue(uid, null)
-                  if (cache != null && cache.name != `无法索取用户资讯`){
-                      username = cache.name
-                  }else{
-                     const { name } = await webRequest(`https://api.bilibili.com/x/space/acc/info?mid=${uid}&jsonp=jsonp`)
-                     username = name
-                  }
-                  console.debug(`成功辨别舰长 ${uid} 名称为 ${name}`)
+                    const cache = GM_getValue(uid, null)
+                    if (cache != null && cache.name != `无法索取用户资讯`){
+                        username = cache.name
+                    }else{
+                        const { name } = await requestUserInfo(uid)
+                        username = name
+                    }
+                    console.debug(`成功辨别舰长 ${uid} 名称为 ${name}`)
                 }catch(err){
-                   console.error(`索取大航海用户资讯错误: ${err}`)
-                   console.warn(`将使用 uid 作为名称`)
-                   username = `(UID: ${uid})`
+                    console.error(`索取大航海用户资讯错误: ${err}`)
+                    console.warn(`将使用 uid 作为名称`)
+                    username = `(UID: ${uid})`
                 }
                 handleUserEnter(uid, username)
             })
@@ -191,31 +208,31 @@
                 danmakuObserver.observe($('.danmaku-item-container')[0], config)
             }
         }
-
+ 
         await launch()
     } else if (["https://eric2788.github.io", "https://eric2788.neeemooo.com", "http://127.0.0.1:5500"].includes(location.origin)){
         while(!unsafeWindow.mdui){
-           console.debug('cannot find mdui, wait one second')
-           await sleep(1000)
+            console.debug('cannot find mdui, wait one second')
+            await sleep(1000)
         }
         const $ = mdui.$
         async function appendUser(userId){
             if ($(`#${userId}`).length > 0){
-               mdui.alert('该用户已在列表内')
-               return false
+                mdui.alert('该用户已在列表内')
+                return false
             }
             try {
                 const lastUpdate = GM_getValue('last.update', new Date())
                 const haveData = GM_getValue(userId, null) != null
                 const today = new Date()
                 if (!haveData || Math.abs(today - lastUpdate) > (86400 * 1000 * 7)) {
-                  console.log('cache outdated, updating user info...')
-                  const { name, face } = await webRequest(`https://api.bilibili.com/x/space/acc/info?mid=${userId}&jsonp=jsonp`)
-                  GM_setValue(userId, {name, face})
-                  GM_setValue('last.update', new Date())
-                  console.log('user info updated and saved to cache.')
+                    console.log('cache outdated, updating user info...')
+                    const { name, face } = await requestUserInfo(userId)
+                    GM_setValue(userId, {name, face})
+                    GM_setValue('last.update', new Date())
+                    console.log('user info updated and saved to cache.')
                 }else{
-                  console.log('loading user info from cache.')
+                    console.log('loading user info from cache.')
                 }
                 const {name, face} = GM_getValue(userId, {name: `无法索取用户资讯`, face: ''})
                 $('#hightlight-users').append(`
@@ -232,8 +249,8 @@
             }catch(err){
                 console.warn(err)
                 if (err.code == -412){
-                  const {name, face} = GM_getValue(userId, {name: `无法索取用户资讯`, face: ''})
-                  $('#hightlight-users').append(`
+                    const {name, face} = GM_getValue(userId, {name: `无法索取用户资讯`, face: ''})
+                    $('#hightlight-users').append(`
                     <label class="mdui-list-item mdui-ripple">
                         <div class="mdui-checkbox">
                             <input type="checkbox" id="${userId}"/>
@@ -243,102 +260,102 @@
                         <div class="mdui-list-item-content">${name} (${userId})</div>
                    </label>
                   `)
-                  return true;
+                    return true;
                 }else{
-                  mdui.alert(`无法索取 ${userId} 的用户资讯: ${err.message}`)
-                  return false;
+                    mdui.alert(`无法索取 ${userId} 的用户资讯: ${err.message}`)
+                    return false;
                 }
             }finally{
-              $(`#${userId}`).on('change', e => {
-                if (getTicked().length > 0) {
-                    $('#delete-btn').show()
-                } else {
-                    $('#delete-btn').hide()
-                }
-              })
+                $(`#${userId}`).on('change', e => {
+                    if (getTicked().length > 0) {
+                        $('#delete-btn').show()
+                    } else {
+                        $('#delete-btn').hide()
+                    }
+                })
             }
-       }
-
-
+        }
+ 
+ 
         function getTicked() {
             return $('#hightlight-users').find('.mdui-checkbox > input').filter((i, e) => $(e).prop('checked')).map((i, e) => $(e).attr('id'))
         }
-
+ 
         $('#delete-btn').on('click', e => {
             getTicked().each((i, id) => $(`#${id}`).parents('.mdui-list-item').remove())
             GM_setValue('settings', getSettings())
             mdui.snackbar('删除并保存成功')
             $('#delete-btn').hide()
         })
-
+ 
         $('#user-add').on('keypress', async (e) => {
             if (e.which != 13) return
             if (!$('#user-add')[0].checkValidity()) return
             if (await appendUser(e.target.value)){
-               GM_setValue('settings', getSettings())
-               mdui.snackbar('新增并保存成功')
-               e.target.value = ''
+                GM_setValue('settings', getSettings())
+                mdui.snackbar('新增并保存成功')
+                e.target.value = ''
             }
         });
-
+ 
         $('#save-btn').on('click', e => {
             if (!$('form')[0].checkValidity()){
-               mdui.snackbar('保存失败，请检查格式或漏填')
-               return
+                mdui.snackbar('保存失败，请检查格式或漏填')
+                return
             }
             GM_setValue('settings', getSettings())
             mdui.snackbar('保存成功')
         })
-
+ 
         $('#try-listen-join').on('click', () => {
-           const audio = new Audio(sounds.join)
-           audio.volume = parseVolume('#volume-join')
-           $('#try-listen-join').attr('disabled', '')
-           audio.addEventListener('canplaythrough', () => {
+            const audio = new Audio(sounds.join)
+            audio.volume = parseVolume('#volume-join')
+            $('#try-listen-join').attr('disabled', '')
+            audio.addEventListener('canplaythrough', () => {
                 audio.play()
                 $('#try-listen-join').removeAttr('disabled')
-           })
+            })
         })
-
+ 
         $('#try-listen-danmu').on('click', () => {
-           const audio = new Audio(sounds.danmu)
-           audio.volume = parseVolume('#volume-danmu')
+            const audio = new Audio(sounds.danmu)
+            audio.volume = parseVolume('#volume-danmu')
             $('#try-listen-danmu').attr('disabled', '')
-           audio.addEventListener('canplaythrough', () => {
-               audio.play()
-               $('#try-listen-danmu').removeAttr('disabled')
-           })
+            audio.addEventListener('canplaythrough', () => {
+                audio.play()
+                $('#try-listen-danmu').removeAttr('disabled')
+            })
         })
-
+ 
         const joinNotifyPosSelect = new mdui.Select('#join-notify-position', {position: 'bottom'})
-
-
+ 
+ 
         $('#import-setting').on('click', async () => {
-           try {
-             const area = $('#setting-area').val()
-             const {highlightUsers, settings: currentSettings } = JSON.parse(area)
-             const settings = { ...defaultSettings.settings, ...currentSettings }
-             $('.mdui-list-item').remove() // clear old data
-             await initializeSettings({highlightUsers, settings})
-             mdui.snackbar('设定档导入成功，请记得按下保存')
-             $('#setting-area').val('')
-           }catch(err){
-             console.error(err)
-             mdui.snackbar('设定档导入失败，请检查格式有没有错误')
-           }
+            try {
+                const area = $('#setting-area').val()
+                const {highlightUsers, settings: currentSettings } = JSON.parse(area)
+                const settings = { ...defaultSettings.settings, ...currentSettings }
+                $('.mdui-list-item').remove() // clear old data
+                await initializeSettings({highlightUsers, settings})
+                mdui.snackbar('设定档导入成功，请记得按下保存')
+                $('#setting-area').val('')
+            }catch(err){
+                console.error(err)
+                mdui.snackbar('设定档导入失败，请检查格式有没有错误')
+            }
         })
-
+ 
         $('#export-setting').on('click', () => {
-             const area = JSON.stringify(getSettings())
-             $('#setting-area').val(area)
-             const text = $('#setting-area')[0]
-             text.select();
-             text.setSelectionRange(0, 99999);
-             document.execCommand("copy")
-             mdui.snackbar('设定档已导出并复制成功')
-             $('#setting-area').val('')
+            const area = JSON.stringify(getSettings())
+            $('#setting-area').val(area)
+            const text = $('#setting-area')[0]
+            text.select();
+            text.setSelectionRange(0, 99999);
+            document.execCommand("copy")
+            mdui.snackbar('设定档已导出并复制成功')
+            $('#setting-area').val('')
         })
-
+ 
         async function initializeSettings({highlightUsers, settings}){
             await Promise.all(highlightUsers.map((id) => appendUser(id)))
             $('#opacity')[0].valueAsNumber = settings.opacity
@@ -355,9 +372,9 @@
             joinNotifyPosSelect.handleUpdate()
             $('#list-loading').hide()
         }
-
+ 
         await initializeSettings({highlightUsers, settings})
-
+ 
         function getSettings(){
             const users = new Set()
             $('#hightlight-users').find('.mdui-checkbox > input').map((i, e) => parseInt($(e).attr('id'))).filter((i,e) => !!e).each((i,e) => users.add(e))
@@ -369,70 +386,71 @@
                 join_notify_duration: $('#join-notify-duration')[0].valueAsNumber,
                 join_notify_position: $('#join-notify-position').val(),
                 volume: {
-                   danmu: parseVolume('#volume-danmu'),
-                   join: parseVolume('#volume-join')
+                    danmu: parseVolume('#volume-danmu'),
+                    join: parseVolume('#volume-join')
                 }
             }
             return { highlightUsers: [...users], settings }
         }
-
+ 
         function parseVolume(element){
             const val = $(element)[0].value
             if (val == 0) return 0.0
             return parseFloat((val / 100).toFixed(2)) || 1.0
         }
-
+ 
     } else if (location.origin === 'https://sc.chinaz.com'){
         while ($('div.audio-class').length == 0){
-           await sleep(1000)
+            await sleep(1000)
         }
         $('div.audio-class').empty();
         $('div.audio-class')
             .append(`<a href="javascript: void(0)" id="danmu-select">选为弹幕通知</a>`)
             .append('<a href="javascript: void(0)" id="join-select">选为进入通知</a>')
         $('a#danmu-select').on('click', e => {
-          e.preventDefault();
-          if (!window.confirm('确定选择为弹幕通知音效?')) return
-          const url = $(e.target).parents('.audio-item').children('audio').attr('src')
-          if (!url) {
-             alert('选择失败，无效的URL')
-             return
-          }
-          sounds.danmu = url
-          GM_setValue('sounds', sounds)
-          alert('设置成功')
+            e.preventDefault();
+            if (!window.confirm('确定选择为弹幕通知音效?')) return
+            const url = $(e.target).parents('.audio-item').children('audio').attr('src')
+            if (!url) {
+                alert('选择失败，无效的URL')
+                return
+            }
+            sounds.danmu = url
+            GM_setValue('sounds', sounds)
+            alert('设置成功')
         })
-
+ 
         $('a#join-select').on('click', e => {
-          e.preventDefault();
-          if (!window.confirm('确定选择为进入通知音效?')) return
-          const url = $(e.target).parents('.audio-item').children('audio').attr('src')
-          if (!url) {
-             alert('选择失败，无效的URL')
-             return
-          }
-          sounds.join = url
-          GM_setValue('sounds', sounds)
-          alert('设置成功')
+            e.preventDefault();
+            if (!window.confirm('确定选择为进入通知音效?')) return
+            const url = $(e.target).parents('.audio-item').children('audio').attr('src')
+            if (!url) {
+                alert('选择失败，无效的URL')
+                return
+            }
+            sounds.join = url
+            GM_setValue('sounds', sounds)
+            alert('设置成功')
         })
     }
 })().catch(console.error);
-
+ 
 async function webRequest(url){
     const data = await GM.xmlHttpRequest({
-            method: "GET",
-            headers: {
-                'Content-type' : 'application/json',
-                'Referer': 'https://www.bilibili.com',
-                'Origin': 'https://www.bilibili.com'
-            },
-            url
-          })
+        method: "GET",
+        headers: {
+            'Content-type' : 'application/json',
+            'Referer': 'https://www.bilibili.com',
+            'Origin': 'https://www.bilibili.com'
+        },
+        url
+    })
+    console.log(`response for ${url}: ${data?.response ?? data}`);
     const res = JSON.parse(data.response)
     if (res.code !== 0) throw res
     return res.data
 }
-
+ 
 async function sleep(ms){
-   return new Promise((res,) => setTimeout(res,ms))
+    return new Promise((res,) => setTimeout(res,ms))
 }
