@@ -218,22 +218,26 @@
 
             console.debug('bliveproxy injected.')
             unsafeWindow.bliveproxy.addCommandHandler('DANMU_MSG', command => {
+                // console.log(command);
                 const userId = command.info[2][0]
                 console.debug(`user send danmu: ${userId}`)
                 if (!highlightUsers.includes(userId)) return
                 console.debug('detected highlighted user: ' + userId)
 
-                /* 新版直播间无法改写弹幕信息 👇
+                // /* 新版直播间无法改写弹幕信息 👇 -> 刪除 dm_v2 後成功
                 command.info[0][13] = "{}" // 把那些圖片彈幕打回原形
                 if (settings.color) {
                     command.info[0][3] = hexToNum(settings.color)
                 }
                 command.info[1] += `(${command.info[2][1]})`
-                console.debug(`converted danmaku: ${command.info[1]}`)]
+                console.debug(`converted danmaku: ${command.info[1]}`)
                 highlights.add(command.info[1])
 
-                */
-                highlightsMapper.set(command.info[1], command.info[2][1]);
+                // trying to delete this field to make edit happen
+                delete command.dm_v2;
+
+                // */
+                // highlightsMapper.set(command.info[1], command.info[2][1]);
                 if (settings.playAudioDanmu) audio.danmu.play()
             })
             unsafeWindow.bliveproxy.addCommandHandler('INTERACT_WORD', ({ data }) => {
@@ -269,17 +273,17 @@
                             const danmaku = node?.innerText?.trim() ?? node?.data?.trim()
                             console.log('danmaku', danmaku)
                             if (danmaku === undefined || danmaku === '') continue
-                            //if (!highlights.has(danmaku)) continue
-                            if (!highlightsMapper.has(danmaku)) continue;
-                            const user = highlightsMapper.get(danmaku);
-                            console.debug('highlighting danmaku: ', danmaku, ' with user: ', user)
+                            if (!highlights.has(danmaku)) continue
+                            // if (!highlightsMapper.has(danmaku)) continue;
+                            // const user = highlightsMapper.get(danmaku);
+                            // console.debug('highlighting danmaku: ', danmaku, ' with user: ', user)
                             const n = node.innerText !== undefined ? node : node.parentElement
                             const jimaku = $(n)
                             jimaku.css('opacity', `${settings.opacity}`)
-                            jimaku.css('color', `${settings.color}`)
-                            jimaku.text(`${danmaku}(${user})`);
+                            //jimaku.css('color', `${settings.color}`)
+                            //jimaku.text(`${danmaku}(${user})`);
                             highlights.delete(danmaku)
-                            highlightsMapper.delete(danmaku)
+                            // highlightsMapper.delete(danmaku)
                         }
                     }
                 }
