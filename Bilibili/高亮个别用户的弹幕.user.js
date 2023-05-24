@@ -1,7 +1,7 @@
 // ==UserScript==
 // @name         高亮个别用户的弹幕
 // @namespace    http://tampermonkey.net/
-// @version      0.7.23
+// @version      0.7.24
 // @description  高亮个别用户的弹幕, 有时候找一些特殊人物(其他直播主出现在直播房间)用
 // @author       Eric Lam
 // @include      https://sc.chinaz.com/tag_yinxiao/tongzhi.html
@@ -24,7 +24,7 @@
 // @homepage     https://eric2788.neeemooo.com/scriptsettings/highlight-user
 // ==/UserScript==
 
-(async function() {
+(async function () {
     'use strict';
 
     const defaultSettings = {
@@ -64,6 +64,58 @@
     console.debug(highlightUsers)
     console.debug(settings)
 
+
+    async function generateWbi() {
+        const url = 'https://api.bilibili.com/x/web-interface/nav';
+        // get wbi keys
+        const data = await GM.xmlHttpRequest({
+            method: "GET",
+            headers: {
+                'Content-type': 'application/json',
+                'Referer': 'https://www.bilibili.com',
+                'Origin': 'https://www.bilibili.com'
+            },
+            url
+        });
+
+        console.log(`response for ${url}: ${data?.response ?? data}`);
+        const res = JSON.parse(data.response);
+
+        const { img_url, sub_url } = res.data.wbi_img;
+
+        const img_key = img_url.substring(img_url.lastIndexOf('/') + 1, img_url.length).split('.')[0];
+        const sub_key = sub_url.substring(sub_url.lastIndexOf('/') + 1, sub_url.length).split('.')[0]
+
+        const mixinKeyEncTab = [
+            46, 47, 18, 2, 53, 8, 23, 32, 15, 50, 10, 31, 58, 3, 45, 35, 27, 43, 5, 49,
+            33, 9, 42, 19, 29, 28, 14, 39, 12, 38, 41, 13, 37, 48, 7, 16, 24, 55, 40,
+            61, 26, 17, 0, 1, 60, 51, 30, 4, 22, 25, 54, 21, 56, 59, 6, 63, 57, 62, 11,
+            36, 20, 34, 44, 52
+        ]
+
+        const orig = img_key + sub_key;
+
+        let temp = ''
+        mixinKeyEncTab.forEach((n) => {
+            temp += orig[n]
+        })
+
+        return temp.slice(0, 32)
+    }
+
+    // ==== check update
+    const { key, update } = GM_getValue('wbi_salt', { key: '', update: new Date('1970/01/01') });
+    const now = new Date();
+
+    // over a day
+    if (!key || Math.abs(now - update) > (86400 * 1000)) {
+        const wbiKey = await generateWbi();
+        console.info('wbi key salt updated: '+wbiKey);
+        GM_setValue('wbi_salt', { key: wbiKey, update: now });
+    }
+    // ====
+
+
     // gener w_rid
     /* reference
     def w_rid():  # 每次请求生成w_rid参数
@@ -73,28 +125,32 @@
       a = b + "&wts=" + wts + c  # mid + platform + token + web_location + 时间戳wts + 一个固定值
       return hashlib.md5(a.encode(encoding='utf-8')).hexdigest()
     */
-    function w_rid(uid) {
-       const wts = `${Date.now()}`
-       const c = "72136226c6a73669787ee4fd02a74c27"
-       const b =  "mid=" + uid + "&platform=web&token=&web_location=1550101"
-       const a = b + "&wts=" + wts + c  // mid + platform + token + web_location + 时间戳wts + 一个固定值
-       const m = md5.create()
-       m.update(a)
-       return m.hex()
+    function w_rid(uid, wts) {
+        const { key: c } = GM_getValue('wbi_salt')
+        const b = "mid=" + uid + "&platform=web&token=&web_location=1550101"
+        const a = b + "&wts=" + wts + c  // mid + platform + token + web_location + 时间戳wts + 一个固定值
+        const m = md5.create()
+        m.update(a)
+        return m.hex()
     }
 
     async function requestUserInfo(mid) {
         let error = null;
         const baseUrls = [
-            `https://api.bilibili.com/x/space/acc/info?mid=${mid}&jsonp=jsonp`, // 已經失效
-            `https://api.bilibili.com/x/space/wbi/acc/info?mid=${mid}&jsonp=jsonp`, // 已經失效
-            `https://api.bilibili.com/x/space/wbi/acc/info?platform=web&token=&web_location=1550101&wts=${Date.now()}&mid=${mid}&w_rid=${w_rid(mid)}`
+            () => `https://api.bilibili.com/x/space/acc/info?mid=${mid}&jsonp=jsonp`, // 已經失效
+            () => `https://api.bilibili.com/x/space/wbi/acc/info?mid=${mid}&jsonp=jsonp`, // 已經失效
+            () => {
+                const now = Math.round(Date.now() / 1000);
+                return `https://api.bilibili.com/x/space/wbi/acc/info?platform=web&token=&web_location=1550101&wts=${now}&mid=${mid}&w_rid=${w_rid(mid, now)}`
+            }
         ]
-        for(const base of baseUrls) {
+        for (const base of baseUrls) {
             try {
-                return await webRequest(base)
-            }catch(err){
-                console.error(`使用 ${base} 請求時出現錯誤: ${err?.message ?? err}`);
+                const url = base();
+                console.info(`正在使用 ${url} 進行請求...`)
+                return await webRequest(url)
+            } catch (err) {
+                console.error(`請求時出現錯誤: ${err?.message ?? err}`);
                 console.warn(`嘗試使用下一個API`)
                 error = err;
             }
@@ -103,10 +159,10 @@
         throw error;
     }
 
-    if (location.origin == 'https://live.bilibili.com'){
+    if (location.origin == 'https://live.bilibili.com') {
         console.log('using highlight filter')
 
-        function hexToNum(color){
+        function hexToNum(color) {
             const hex = color.substr(1)
             return parseInt(hex, 16)
         }
@@ -141,18 +197,18 @@
 
         const elements = ['.danmaku-item-container']
 
-        async function launch(){
+        async function launch() {
             console.debug('launching highlight filter...')
-            while(!unsafeWindow.bliveproxy){
+            while (!unsafeWindow.bliveproxy) {
                 console.log('cannot not find bliveproxy, wait one second')
                 await sleep(1000)
             }
-            while(!elements.some(s => $(s).length > 0)){
+            while (!elements.some(s => $(s).length > 0)) {
                 console.log('cannot not find element, wait one second')
                 await sleep(1000)
             }
 
-            function handleUserEnter(uid, uname){
+            function handleUserEnter(uid, uname) {
                 console.debug(`user enter: ${uid} (${uname})`)
                 if (!highlightUsers.includes(uid)) return
                 console.log(`name: ${uname} has enter this live room`)
@@ -165,7 +221,7 @@
                 const userId = command.info[2][0]
                 console.debug(`user send danmu: ${userId}`)
                 if (!highlightUsers.includes(userId)) return
-                console.debug('detected highlighted user: '+userId)
+                console.debug('detected highlighted user: ' + userId)
 
                 /* 新版直播间无法改写弹幕信息 👇
                 command.info[0][13] = "{}" // 把那些圖片彈幕打回原形
@@ -180,35 +236,35 @@
                 highlightsMapper.set(command.info[1], command.info[2][1]);
                 if (settings.playAudioDanmu) audio.danmu.play()
             })
-            unsafeWindow.bliveproxy.addCommandHandler('INTERACT_WORD', ({data}) => {
-                const {uid, uname} = data
+            unsafeWindow.bliveproxy.addCommandHandler('INTERACT_WORD', ({ data }) => {
+                const { uid, uname } = data
                 handleUserEnter(uid, uname)
             })
-            unsafeWindow.bliveproxy.addCommandHandler('ENTRY_EFFECT', async ({data}) => {
+            unsafeWindow.bliveproxy.addCommandHandler('ENTRY_EFFECT', async ({ data }) => {
                 const { uid } = data
                 if (!highlightUsers.includes(uid)) return
                 let username;
                 try {
                     const cache = GM_getValue(uid, null)
-                    if (cache != null && cache.name != `无法索取用户资讯`){
+                    if (cache != null && cache.name != `无法索取用户资讯`) {
                         username = cache.name
-                    }else{
+                    } else {
                         const { name } = await requestUserInfo(uid)
                         username = name
                     }
                     console.debug(`成功辨别舰长 ${uid} 名称为 ${name}`)
-                }catch(err){
+                } catch (err) {
                     console.error(`索取大航海用户资讯错误: ${err}`)
                     console.warn(`将使用 uid 作为名称`)
                     username = `(UID: ${uid})`
                 }
                 handleUserEnter(uid, username)
             })
-            if (settings.opacity){
+            if (settings.opacity) {
                 const config = { attributes: false, childList: true, subtree: true }
-                function danmakuCheckCallback(mutationsList){
-                    for(const mu of mutationsList){
-                        for (const node of mu.addedNodes){
+                function danmakuCheckCallback(mutationsList) {
+                    for (const mu of mutationsList) {
+                        for (const node of mu.addedNodes) {
                             console.log('node', node);
                             const danmaku = node?.innerText?.trim() ?? node?.data?.trim()
                             console.log('danmaku', danmaku)
@@ -233,14 +289,14 @@
         }
 
         await launch()
-    } else if (["https://eric2788.github.io", "https://eric2788.neeemooo.com", "http://127.0.0.1:5500"].includes(location.origin)){
-        while(!unsafeWindow.mdui){
+    } else if (["https://eric2788.github.io", "https://eric2788.neeemooo.com", "http://127.0.0.1:5500"].includes(location.origin)) {
+        while (!unsafeWindow.mdui) {
             console.debug('cannot find mdui, wait one second')
             await sleep(1000)
         }
         const $ = mdui.$
-        async function appendUser(userId){
-            if ($(`#${userId}`).length > 0){
+        async function appendUser(userId) {
+            if ($(`#${userId}`).length > 0) {
                 mdui.alert('该用户已在列表内')
                 return false
             }
@@ -251,13 +307,13 @@
                 if (!haveData || Math.abs(today - lastUpdate) > (86400 * 1000 * 7)) {
                     console.log('cache outdated, updating user info...')
                     const { name, face } = await requestUserInfo(userId)
-                    GM_setValue(userId, {name, face})
+                    GM_setValue(userId, { name, face })
                     GM_setValue('last.update', new Date())
                     console.log('user info updated and saved to cache.')
-                }else{
+                } else {
                     console.log('loading user info from cache.')
                 }
-                const {name, face} = GM_getValue(userId, {name: `无法索取用户资讯`, face: ''})
+                const { name, face } = GM_getValue(userId, { name: `无法索取用户资讯`, face: '' })
                 $('#hightlight-users').append(`
                     <label class="mdui-list-item mdui-ripple">
                         <div class="mdui-checkbox">
@@ -269,10 +325,10 @@
                    </label>
                 `)
                 return true;
-            }catch(err){
+            } catch (err) {
                 console.warn(err)
-                if (err.code == -412){
-                    const {name, face} = GM_getValue(userId, {name: `无法索取用户资讯`, face: ''})
+                if (err.code == -412) {
+                    const { name, face } = GM_getValue(userId, { name: `无法索取用户资讯`, face: '' })
                     $('#hightlight-users').append(`
                     <label class="mdui-list-item mdui-ripple">
                         <div class="mdui-checkbox">
@@ -284,11 +340,11 @@
                    </label>
                   `)
                     return true;
-                }else{
+                } else {
                     mdui.alert(`无法索取 ${userId} 的用户资讯: ${err.message}`)
                     return false;
                 }
-            }finally{
+            } finally {
                 $(`#${userId}`).on('change', e => {
                     if (getTicked().length > 0) {
                         $('#delete-btn').show()
@@ -314,7 +370,7 @@
         $('#user-add').on('keypress', async (e) => {
             if (e.which != 13) return
             if (!$('#user-add')[0].checkValidity()) return
-            if (await appendUser(e.target.value)){
+            if (await appendUser(e.target.value)) {
                 GM_setValue('settings', getSettings())
                 mdui.snackbar('新增并保存成功')
                 e.target.value = ''
@@ -322,7 +378,7 @@
         });
 
         $('#save-btn').on('click', e => {
-            if (!$('form')[0].checkValidity()){
+            if (!$('form')[0].checkValidity()) {
                 mdui.snackbar('保存失败，请检查格式或漏填')
                 return
             }
@@ -350,19 +406,19 @@
             })
         })
 
-        const joinNotifyPosSelect = new mdui.Select('#join-notify-position', {position: 'bottom'})
+        const joinNotifyPosSelect = new mdui.Select('#join-notify-position', { position: 'bottom' })
 
 
         $('#import-setting').on('click', async () => {
             try {
                 const area = $('#setting-area').val()
-                const {highlightUsers, settings: currentSettings } = JSON.parse(area)
+                const { highlightUsers, settings: currentSettings } = JSON.parse(area)
                 const settings = { ...defaultSettings.settings, ...currentSettings }
                 $('.mdui-list-item').remove() // clear old data
-                await initializeSettings({highlightUsers, settings})
+                await initializeSettings({ highlightUsers, settings })
                 mdui.snackbar('设定档导入成功，请记得按下保存')
                 $('#setting-area').val('')
-            }catch(err){
+            } catch (err) {
                 console.error(err)
                 mdui.snackbar('设定档导入失败，请检查格式有没有错误')
             }
@@ -379,7 +435,7 @@
             $('#setting-area').val('')
         })
 
-        async function initializeSettings({highlightUsers, settings}){
+        async function initializeSettings({ highlightUsers, settings }) {
             await Promise.all(highlightUsers.map((id) => appendUser(id)))
             $('#opacity')[0].valueAsNumber = settings.opacity
             $('#color').val(settings.color)
@@ -396,11 +452,11 @@
             $('#list-loading').hide()
         }
 
-        await initializeSettings({highlightUsers, settings})
+        await initializeSettings({ highlightUsers, settings })
 
-        function getSettings(){
+        function getSettings() {
             const users = new Set()
-            $('#hightlight-users').find('.mdui-checkbox > input').map((i, e) => parseInt($(e).attr('id'))).filter((i,e) => !!e).each((i,e) => users.add(e))
+            $('#hightlight-users').find('.mdui-checkbox > input').map((i, e) => parseInt($(e).attr('id'))).filter((i, e) => !!e).each((i, e) => users.add(e))
             const settings = {
                 opacity: $('#opacity')[0].valueAsNumber,
                 color: $('#color')[0].checkValidity() ? $('#color').val() : '',
@@ -416,14 +472,14 @@
             return { highlightUsers: [...users], settings }
         }
 
-        function parseVolume(element){
+        function parseVolume(element) {
             const val = $(element)[0].value
             if (val == 0) return 0.0
             return parseFloat((val / 100).toFixed(2)) || 1.0
         }
 
-    } else if (location.origin === 'https://sc.chinaz.com'){
-        while ($('div.audio-class').length == 0){
+    } else if (location.origin === 'https://sc.chinaz.com') {
+        while ($('div.audio-class').length == 0) {
             await sleep(1000)
         }
         $('div.audio-class').empty();
@@ -458,11 +514,11 @@
     }
 })().catch(console.error);
 
-async function webRequest(url){
+async function webRequest(url) {
     const data = await GM.xmlHttpRequest({
         method: "GET",
         headers: {
-            'Content-type' : 'application/json',
+            'Content-type': 'application/json',
             'Referer': 'https://www.bilibili.com',
             'Origin': 'https://www.bilibili.com'
         },
@@ -474,6 +530,6 @@ async function webRequest(url){
     return res.data
 }
 
-async function sleep(ms){
-    return new Promise((res,) => setTimeout(res,ms))
+async function sleep(ms) {
+    return new Promise((res,) => setTimeout(res, ms))
 }
