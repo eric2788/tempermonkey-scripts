@@ -1,7 +1,7 @@
 // ==UserScript==
 // @name         B站直播随看随录
 // @namespace    http://tampermonkey.net/
-// @version      0.8
+// @version      0.9
 // @description  无需打开弹幕姬，必要时直接录制的快速切片工具
 // @author       Eric Lam
 // @license      MIT
@@ -19,7 +19,7 @@ class StreamUrlGetter {
         }
     }
 
-    async getUrl(roomid, qn = 10000){
+    async getUrl(roomid){
     }
 
 }
@@ -290,7 +290,7 @@ function download_flv(chunks, file = 'test.flv'){
 
 class RoomPlayUrl extends StreamUrlGetter {
 
-    async getUrl(roomid, qn = 10000){
+    async getUrl(roomid){
         const stream_urls = []
         const res = await fetcher(`http://api.live.bilibili.com/room/v1/Room/playUrl?cid=${roomid}&qn=${qn}`)
 
@@ -311,9 +311,9 @@ class RoomPlayUrl extends StreamUrlGetter {
 
 class RoomPlayInfo extends StreamUrlGetter {
 
-    async getUrl(roomid, qn = 10000){
+    async getUrl(roomid){
         const stream_urls = []
-        const url = `https://api.live.bilibili.com/xlive/web-room/v2/index/getRoomPlayInfo?room_id=${roomid}&protocol=0,1&format=0,2&codec=0,1&qn=${qn}&platform=web&ptype=16`
+        const url = `https://api.live.bilibili.com/xlive/web-room/v2/index/getRoomPlayInfo?room_id=${roomid}&protocol=0,1&format=0,2&codec=0,1&qn=10000&platform=web&ptype=16`
        const res = await fetcher(url)
 
        if (res.data.is_hidden){
@@ -337,27 +337,14 @@ class RoomPlayInfo extends StreamUrlGetter {
             return stream_urls
         }
 
-        for (const index in streams){
-            const st = streams[index]
-
-            for (const f_index in st.format){
-                const format = st.format[f_index]
+        for (const st of streams){
+            for (const format of st.format){
                 if (format.format_name !== 'flv'){
                     console.warn(`线路 ${index} 格式 ${f_index} 并不是 flv, 已经略过`)
                     continue
                 }
 
-                for (const c_index in format.codec){
-                    const codec = format.codec[c_index]
-                     if (codec.current_qn != qn){
-                         console.warn(`线路 ${index} 格式 ${f_index} 编码 ${c_index} 的画质并不是 ${qn}, 已略过`)
-                         continue
-                     }
-                     const accept_qn = codec.accept_qn
-                     if (!accept_qn.includes(qn)){
-                         console.warn(`线路 ${index} 格式 ${f_index} 编码 ${c_index} 不支援画质 ${qn}, 已略过`)
-                         continue
-                     }
+                for (const codec of format.codec.sort((a,b) => b.current_qn - a.current_qn)){
                      const base_url = codec.base_url
                      for (const url_info of codec.url_info){
                          const real_url = url_info.host + base_url + url_info.extra
@@ -545,4 +532,3 @@ async function clearRecords(){
        }
    })
 }
-
