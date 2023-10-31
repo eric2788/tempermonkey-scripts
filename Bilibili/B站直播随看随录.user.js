@@ -292,7 +292,7 @@ class RoomPlayUrl extends StreamUrlGetter {
 
     async getUrl(roomid){
         const stream_urls = []
-        const res = await fetcher(`http://api.live.bilibili.com/room/v1/Room/playUrl?cid=${roomid}&qn=${qn}`)
+        const res = await fetcher(`http://api.live.bilibili.com/room/v1/Room/playUrl?cid=${roomid}&qn=10000`)
 
         const durls = res.data.durl
         if (durls.length == 0){
