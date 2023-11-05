@@ -1,7 +1,7 @@
 // ==UserScript==
 // @name         高能榜显示总人数
 // @namespace    http://tampermonkey.net/
-// @version      0.3
+// @version      0.4
 // @description  听说有人想要把高能榜当同接参考？
 // @author       Eric Lam
 // @license      MIT
@@ -72,7 +72,7 @@
             console.warn(`查询贡献榜时出现错误: ${err}`)
             console.warn(err)
         }
-        rankGold.innerText = `${keyword}(${online}/${online2})`
+        rankGold.innerHTML = `<span title="高能用戶(左): ${online}\n贡献用户(右): ${online2}">${keyword}(${online}/${online2})</span>`
     }, seconds * 1000)
 })().catch(console.warn);
 
