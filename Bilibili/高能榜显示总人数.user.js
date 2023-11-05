@@ -1,7 +1,7 @@
 // ==UserScript==
 // @name         高能榜显示总人数
 // @namespace    http://tampermonkey.net/
-// @version      0.2
+// @version      0.3
 // @description  听说有人想要把高能榜当同接参考？
 // @author       Eric Lam
 // @license      MIT
@@ -38,14 +38,19 @@
       await new Promise((res,) => setTimeout(res, 3000)) // wait 3 seconds
     }
 
+    const keywords = ['高能榜', '高能用户']
+    let keyword;
     for (const element of $('.tab-list.dp-flex').children()){
         console.log(element.innerText)
-        if (element.innerText.startsWith("高能榜")) {
+        const kw = keywords.find(s => element.innerText.startsWith(s))
+        console.log(kw)
+        if (kw) {
            rankGold = element
+           keyword = kw
         }
     }
 
-    if (!rankGold) {
+    if (!rankGold || !keyword) {
        console.warn(`找不到高能榜元素。`)
        return
     }
@@ -54,7 +59,7 @@
         try {
           const data = await fetcher(`https://api.live.bilibili.com/xlive/general-interface/v1/rank/getOnlineGoldRank?ruid=${uid}&roomId=${roomId}&page=1&pageSize=1`)
           const online = data.data.onlineNum
-          rankGold.innerText = `高能榜(${online})`
+          rankGold.innerText = `${keyword}(${online})`
         }catch(err){
            console.warn(`刷新高能榜时出现错误: ${err}`)
            console.warn(err)
