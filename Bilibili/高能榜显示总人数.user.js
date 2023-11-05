@@ -11,7 +11,7 @@
 // @icon         https://www.google.com/s2/favicons?domain=bilibili.com
 // ==/UserScript==
 
-(async function() {
+(async function () {
     'use strict';
     // ====== 设定 ==========
     const seconds = 5 // 隔 X 秒侦测
@@ -21,11 +21,11 @@
     const roomReg = /^\/(blanc\/)?(?<id>\d+)/
     let roomId = parseInt(roomReg.exec(location.pathname)?.groups?.id)
 
-    const res = await fetcher('https://api.live.bilibili.com/room/v1/Room/room_init?id='+roomId)
+    const res = await fetcher('https://api.live.bilibili.com/room/v1/Room/room_init?id=' + roomId)
 
-    if (res.data.live_status != 1){
-       console.warn(`不在直播，已略过`)
-       return
+    if (res.data.live_status != 1) {
+        console.warn(`不在直播，已略过`)
+        return
     }
 
     roomId = res.data.room_id
@@ -33,37 +33,46 @@
 
     let rankGold = undefined
 
-    while ($('.tab-list.dp-flex').children().length == 0){
-      console.warn(`找不到Tab元素，等待3秒。`)
-      await new Promise((res,) => setTimeout(res, 3000)) // wait 3 seconds
+    while ($('.tab-list.dp-flex').children().length == 0) {
+        console.warn(`找不到Tab元素，等待3秒。`)
+        await new Promise((res,) => setTimeout(res, 3000)) // wait 3 seconds
     }
 
-    const keywords = ['高能榜', '高能用户']
+    const keywords = ['高能榜', '高能用户', '应援日榜']
     let keyword;
-    for (const element of $('.tab-list.dp-flex').children()){
+    for (const element of $('.tab-list.dp-flex').children()) {
         console.log(element.innerText)
         const kw = keywords.find(s => element.innerText.startsWith(s))
         console.log(kw)
         if (kw) {
-           rankGold = element
-           keyword = kw
+            rankGold = element
+            keyword = kw
         }
     }
 
     if (!rankGold || !keyword) {
-       console.warn(`找不到高能榜元素。`)
-       return
+        console.warn(`找不到高能榜元素。`)
+        return
     }
 
     setInterval(async () => {
+        let online = 0
+        let online2 = 0
         try {
-          const data = await fetcher(`https://api.live.bilibili.com/xlive/general-interface/v1/rank/getOnlineGoldRank?ruid=${uid}&roomId=${roomId}&page=1&pageSize=1`)
-          const online = data.data.onlineNum
-          rankGold.innerText = `${keyword}(${online})`
-        }catch(err){
-           console.warn(`刷新高能榜时出现错误: ${err}`)
-           console.warn(err)
+            const data = await fetcher(`https://api.live.bilibili.com/xlive/general-interface/v1/rank/getOnlineGoldRank?ruid=${uid}&roomId=${roomId}&page=1&pageSize=1`)
+            online = data.data.onlineNum
+        } catch (err) {
+            console.warn(`查询高能榜时出现错误: ${err}`)
+            console.warn(err)
         }
+        try {
+            const data2 = await fetcher(`https://api.live.bilibili.com/xlive/general-interface/v1/rank/queryContributionRank?ruid=${uid}&room_id=${roomId}&page=1&page_size=1&type=online_rank&switch=contribution_rank`)
+            online2 = data2.data.count
+        } catch (err) {
+            console.warn(`查询贡献榜时出现错误: ${err}`)
+            console.warn(err)
+        }
+        rankGold.innerText = `${keyword}(${online}/${online2})`
     }, seconds * 1000)
 })().catch(console.warn);
 
@@ -71,13 +80,13 @@
 
 async function fetcher(url) {
     const res = await fetch(url)
-    if (!res.ok){
+    if (!res.ok) {
         throw new Error(res.statusText)
     }
 
     const data = await res.json()
     console.debug(data)
-    if (data.code != 0){
+    if (data.code != 0) {
         throw new Error(`B站API请求错误: ${data.message}`)
     }
     return data
