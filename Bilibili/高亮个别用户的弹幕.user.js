@@ -1,7 +1,7 @@
 // ==UserScript==
 // @name         高亮个别用户的弹幕
 // @namespace    http://tampermonkey.net/
-// @version      0.7.24
+// @version      0.7.25
 // @description  高亮个别用户的弹幕, 有时候找一些特殊人物(其他直播主出现在直播房间)用
 // @author       Eric Lam
 // @include      https://sc.chinaz.com/tag_yinxiao/tongzhi.html
@@ -141,7 +141,7 @@
             () => `https://api.bilibili.com/x/space/wbi/acc/info?mid=${mid}&jsonp=jsonp`, // 已經失效
             () => {
                 const now = Math.round(Date.now() / 1000);
-                return `https://api.bilibili.com/x/space/wbi/acc/info?platform=web&token=&web_location=1550101&wts=${now}&mid=${mid}&w_rid=${w_rid(mid, now)}`
+                return `https://api.bilibili.com/x/space/wbi/acc/info?platform=web&token=&web_location=1550101&wts=${now}&mid=${mid}&w_rid=${w_rid(mid, now)}&dm_cover_img_str=ahwidhawihdai`
             }
         ]
         for (const base of baseUrls) {
@@ -299,7 +299,7 @@
             await sleep(1000)
         }
         const $ = mdui.$
-        async function appendUser(userId) {
+        async function appendUser(userId, prompt = false) {
             if ($(`#${userId}`).length > 0) {
                 mdui.alert('该用户已在列表内')
                 return false
@@ -331,19 +331,46 @@
                 return true;
             } catch (err) {
                 console.warn(err)
-                if (err.code == -412) {
-                    const { name, face } = GM_getValue(userId, { name: `无法索取用户资讯`, face: '' })
-                    $('#hightlight-users').append(`
-                    <label class="mdui-list-item mdui-ripple">
-                        <div class="mdui-checkbox">
+                if (!!err.code) {
+                    const { name, face } = GM_getValue(userId, { name: `无法索取用户资讯`, face: 'https://i0.hdslb.com/bfs/face/member/noface.jpg' })
+                    const add = () => {
+                      $('#hightlight-users').append(`
+                        <label class="mdui-list-item mdui-ripple">
+                          <div class="mdui-checkbox">
                             <input type="checkbox" id="${userId}"/>
                             <i class="mdui-checkbox-icon"></i>
-                        </div>
-                        <div class="mdui-list-item-avatar"><img src="${face}"/></div>
-                        <div class="mdui-list-item-content">${name} (${userId})</div>
-                   </label>
-                  `)
-                    return true;
+                          </div>
+                          <div class="mdui-list-item-avatar"><img src="${face}"/></div>
+                          <div class="mdui-list-item-content">${name} (UID: ${userId})</div>
+                        </label>
+                      `)
+                    }
+                    if (prompt) {
+                      const res = await new Promise((res,) => {
+                         mdui.dialog({
+                          title: `无法索取 ${userId} 的用户资讯`,
+                          content: `错误信息: ${err.message}(${err.code}), 是否要强制添加？`,
+                          buttons: [
+                              {
+                                text: '强制添加',
+                                bold: true,
+                                onClick: () => {
+                                  add()
+                                  res(true)
+                                }
+                              },
+                              {
+                                text: '取消'
+                              }
+                          ],
+                          onClosed: () => res(false)
+                         })
+                      })
+                      return res;
+                    } else {
+                      add()
+                      return true;
+                    }
                 } else {
                     mdui.alert(`无法索取 ${userId} 的用户资讯: ${err.message}`)
                     return false;
@@ -374,7 +401,7 @@
         $('#user-add').on('keypress', async (e) => {
             if (e.which != 13) return
             if (!$('#user-add')[0].checkValidity()) return
-            if (await appendUser(e.target.value)) {
+            if (await appendUser(e.target.value, true)) {
                 GM_setValue('settings', getSettings())
                 mdui.snackbar('新增并保存成功')
                 e.target.value = ''
@@ -524,7 +551,8 @@ async function webRequest(url) {
         headers: {
             'Content-type': 'application/json',
             'Referer': 'https://www.bilibili.com',
-            'Origin': 'https://www.bilibili.com'
+            'Origin': 'https://www.bilibili.com',
+            'User-Agent': 'Mozilla/5.0',
         },
         url
     })
