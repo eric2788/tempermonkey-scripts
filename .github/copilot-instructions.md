@@ -1,4 +1,4 @@
-# Tempermonkey Scripts Repository
+# Tampermonkey Scripts Repository
 
 This repository contains Chinese Tampermonkey userscripts for Bilibili live streaming platform. These are browser userscripts that enhance Bilibili's functionality for Chinese users.
 
