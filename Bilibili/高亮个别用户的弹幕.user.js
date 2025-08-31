@@ -1,7 +1,7 @@
 // ==UserScript==
 // @name         高亮个别用户的弹幕
 // @namespace    http://tampermonkey.net/
-// @version      0.7.25
+// @version      0.7.26
 // @description  高亮个别用户的弹幕, 有时候找一些特殊人物(其他直播主出现在直播房间)用
 // @author       Eric Lam
 // @include      https://sc.chinaz.com/tag_yinxiao/tongzhi.html
