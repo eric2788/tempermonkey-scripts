@@ -11,7 +11,7 @@
 // @require      https://cdn.jsdelivr.net/npm/jquery@3.5.1/dist/jquery.min.js
 // @require      https://cdn.jsdelivr.net/gh/google/brotli@5692e422da6af1e991f9182345d58df87866bc5e/js/decode.js
 // @require      https://greasyfork.org/scripts/417560-bliveproxy/code/bliveproxy.js?version=1045452
-// @require      https://lf26-cdn-tos.bytecdntp.com/cdn/expire-1-M/toastr.js/2.1.4/toastr.min.js
+// @require      https://cdn.jsdelivr.net/npm/toastr@2.1.4/build/toastr.min.js
 // @require      https://cdn.jsdelivr.net/npm/js-md5@0.7.3/build/md5.min.js
 // @grant        GM.xmlHttpRequest
 // @grant        GM_setValue
@@ -167,7 +167,7 @@
             return parseInt(hex, 16)
         }
 
-        $(document.head).append(`<link href="https://lf3-cdn-tos.bytecdntp.com/cdn/expire-1-M/toastr.js/2.1.4/toastr.min.css" rel="stylesheet" />`)
+        $(document.head).append(`<link href="https://cdn.jsdelivr.net/npm/toastr@2.1.4/build/toastr.min.css" rel="stylesheet" />`)
 
         const audio = {
             join: new Audio(sounds.join),
